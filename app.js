@@ -67,6 +67,9 @@
       meta: a,
       price: a.price,
       open24h: a.price,
+      dayHigh: a.price,
+      dayLow: a.price,
+      funding: rand(0.0001, 0.0006) * (Math.random() < 0.5 ? -1 : 1), // simulated funding rate
       drift: rand(-0.00002, 0.00002), // gentle trend
       ticks: []
     };
@@ -89,6 +92,8 @@
       var next = m.price * (1 + shock + m.drift);
       next = Math.max(next, a.price * 0.2);
       m.price = next;
+      if (m.price > m.dayHigh) m.dayHigh = m.price;
+      if (m.price < m.dayLow) m.dayLow = m.price;
       m.ticks.push(next);
       if (m.ticks.length > HISTORY_CAP) m.ticks.shift();
     });
@@ -314,8 +319,10 @@
     chgEl.className = "ticker-change " + (chg >= 0 ? "green" : "red");
     $("ticker-stats").innerHTML =
       "<span>24h Chg <b>" + fmtPct(chg) + "</b></span>" +
-      "<span>Open <b>" + fmtPrice(m.open24h, a.dec) + "</b></span>" +
-      "<span>Vol <b>" + fmtNum(m.price * 1e6 / 1e3, 1) + "K</b></span>";
+      "<span>24h High <b>" + fmtPrice(m.dayHigh, a.dec) + "</b></span>" +
+      "<span>24h Low <b>" + fmtPrice(m.dayLow, a.dec) + "</b></span>" +
+      "<span>Vol <b>" + fmtNum(m.price * 1e6 / 1e3, 1) + "K</b></span>" +
+      "<span>Funding <b class='" + (m.funding >= 0 ? "green" : "red") + "'>" + fmtPct(m.funding * 100) + "</b></span>";
   }
 
   function renderHeader() {
@@ -338,7 +345,7 @@
     asks.innerHTML = ""; bids.innerHTML = "";
     var maxTotal = 0;
     var levels = [];
-    for (var i = 1; i <= 11; i++) {
+    for (var i = 1; i <= 8; i++) {
       var aPx = mid + spread + step * i;
       var bPx = mid - spread - step * (i - 1);
       var aSz = rand(0.4, 6) * (1 + (11 - i) * 0.05);
@@ -445,21 +452,42 @@
   }
 
   function renderTradePanel() {
-    var m = market[currentSymbol].meta;
+    var sym = currentSymbol;
+    var m = market[sym];
+    var dec = m.meta.dec;
+    $("perp-tag").innerHTML = sym + " · <b>Perpetual Futures</b>";
     var submit = $("trade-submit");
-    submit.textContent = (side === "buy" ? "Buy / Long " : "Sell / Short ") + currentSymbol;
+    submit.textContent = (side === "buy" ? "Buy / Long " : "Sell / Short ") + sym;
     submit.style.background = side === "buy"
       ? "linear-gradient(180deg,#34d399,#10b981)"
       : "linear-gradient(180deg,#fb7185,#ef4444)";
     submit.style.color = "#08130d";
-    $("trade-info").textContent = "Max order: " + fmtUSD(available());
+    $("trade-info").textContent = "Available: " + fmtUSD(available());
     if (orderType === "limit") {
       $("trade-price").disabled = false;
-      if (!$("trade-price").value) $("trade-price").value = market[currentSymbol].price.toFixed(m.dec);
+      $("price-field").style.opacity = "1";
+      if (!$("trade-price").value) $("trade-price").value = m.price.toFixed(dec);
     } else {
       $("trade-price").disabled = true;
+      $("price-field").style.opacity = "0.5";
       $("trade-price").value = "";
     }
+    updateOrderSummary();
+  }
+
+  function updateOrderSummary() {
+    var m = market[currentSymbol];
+    var dec = m.meta.dec;
+    var size = parseFloat($("trade-size").value) || 0;
+    var price = orderType === "limit" && parseFloat($("trade-price").value)
+      ? parseFloat($("trade-price").value) : m.price;
+    var base = size / price;
+    var margin = size / selectedLeverage;
+    var liq = size > 0 ? price * (1 - (side === "buy" ? 1 : -1) / selectedLeverage) : null;
+    $("trade-base").textContent = "≈ " + fmtNum(base, dec + 2) + " " + currentSymbol.split("-")[0];
+    $("os-value").textContent = fmtUSD(size);
+    $("os-margin").textContent = fmtUSD(margin);
+    $("os-liq").textContent = liq ? fmtPrice(liq, dec) : "—";
   }
 
   function renderAll() {
@@ -612,6 +640,8 @@
     });
 
     $("trade-submit").addEventListener("click", placeOrder);
+    $("trade-size").addEventListener("input", updateOrderSummary);
+    $("trade-price").addEventListener("input", updateOrderSummary);
 
     // logout + reset
     $("logout-btn").addEventListener("click", logout);

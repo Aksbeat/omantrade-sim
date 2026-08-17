@@ -12,51 +12,63 @@
   <!-- ========================= LOGIN SCREEN ========================= -->
   <div id="login-screen" class="login-screen">
     <div class="login-bg"></div>
-    <div class="login-card">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="40" height="40"><path d="M4 22 L12 12 L18 18 L28 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="6" r="2.6" fill="currentColor"/></svg>
+    <div class="login-shell">
+      <!-- Left: hero / welcome -->
+      <div class="login-hero">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="42" height="42"><path d="M4 22 L12 12 L18 18 L28 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="6" r="2.6" fill="currentColor"/></svg>
+          </div>
+          <div class="brand-text">
+            <h1>Oman<span>Trade</span></h1>
+            <p class="brand-sub">عُمان للتداول — منصة المحاكاة التجارية</p>
+          </div>
         </div>
-        <div class="brand-text">
-          <h1>Oman<span>Trade</span></h1>
-          <p class="brand-sub">عُمان للتداول — منصة المحاكاة التجارية</p>
-        </div>
-      </div>
 
-      <div class="welcome-note" role="note">
-        <h2>Welcome to the Trading Simulation Platform</h2>
-        <p>
-          A safe, risk-free environment for college students across the
-          <strong>Sultanate of Oman</strong> to learn and practice crypto-perpetual trading.
+        <h2 class="hero-title">Learn crypto perpetual trading —<br/>completely risk-free.</h2>
+        <p class="hero-sub">
+          A safe simulation environment for college students across the
+          <strong>Sultanate of Oman</strong> to practise futures trading with virtual money.
         </p>
+
         <ul class="partners">
           <li><span class="dot"></span> Powered by <strong>Middle East College</strong> &amp; <strong>Ministry of Education</strong></li>
           <li><span class="dot"></span> Funded by the <strong>MoHERI Research Grant</strong></li>
           <li><span class="dot"></span> Every student starts with a virtual <strong>$10,000</strong> balance</li>
         </ul>
+
+        <div class="hero-stats">
+          <div><b>$10,000</b><span>Virtual balance</span></div>
+          <div><b>10</b><span>Perp markets</span></div>
+          <div><b>1×–10×</b><span>Leverage</span></div>
+        </div>
+
+        <p class="disclaimer">
+          ⚠️ <strong>Simulation only.</strong> No real money or exchange connection. All prices,
+          balances and positions are virtual and for educational use.
+        </p>
       </div>
 
-      <form id="login-form" class="login-form" novalidate>
-        <label for="login-name">Student / Trader Name</label>
-        <input id="login-name" name="name" type="text" autocomplete="name" placeholder="e.g. Aisha Al-Balushi" required />
+      <!-- Right: login form -->
+      <div class="login-form-card">
+        <div class="grant-badge">🎁 You'll receive <strong>$10,000</strong> virtual USD on login</div>
+        <form id="login-form" class="login-form" novalidate>
+          <label for="login-name">Student / Trader Name</label>
+          <input id="login-name" name="name" type="text" autocomplete="name" placeholder="e.g. Aisha Al-Balushi" required />
 
-        <label for="login-email">University Email</label>
-        <input id="login-email" name="email" type="email" autocomplete="email" placeholder="e.g. aisha@mec.edu.om" required />
+          <label for="login-email">University Email</label>
+          <input id="login-email" name="email" type="email" autocomplete="email" placeholder="e.g. aisha@mec.edu.om" required />
 
-        <label for="login-id">Student / National ID <span class="optional">(optional)</span></label>
-        <input id="login-id" name="studentId" type="text" placeholder="e.g. 20M12345" />
+          <label for="login-id">Student / National ID <span class="optional">(optional)</span></label>
+          <input id="login-id" name="studentId" type="text" placeholder="e.g. 20M12345" />
 
-        <button type="submit" class="btn-primary btn-block">
-          Enter Simulation &amp; Claim $10,000
-        </button>
-        <p id="login-error" class="form-error" role="alert" hidden></p>
-      </form>
-
-      <p class="disclaimer">
-        ⚠️ This is a <strong>simulation only</strong>. No real money, no real exchange connection.
-        All balances, prices and positions are virtual and for educational use.
-      </p>
-      <p class="login-foot">© <span id="year"></span> OmanTrade Simulation · Middle East College · Ministry of Education · MoHERI</p>
+          <button type="submit" class="btn-primary btn-block">
+            Enter Simulation &amp; Claim $10,000
+          </button>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+        </form>
+        <p class="login-foot">© <span id="year"></span> OmanTrade Simulation · Middle East College · Ministry of Education · MoHERI</p>
+      </div>
     </div>
   </div>
 
@@ -149,6 +161,7 @@
       <!-- Right: order book + trade -->
       <aside class="panel right">
         <div class="orderbook" id="orderbook" aria-label="Order book">
+          <div class="ob-title">Order Book</div>
           <div class="ob-head"><span>Price</span><span>Size</span><span>Total</span></div>
           <div class="ob-asks" id="ob-asks"></div>
           <div class="ob-mid" id="ob-mid">$0.00</div>
@@ -156,22 +169,29 @@
         </div>
 
         <div class="trade">
+          <div class="perp-tag" id="perp-tag">BTC-PERP · Perpetual Futures</div>
+
           <div class="side-toggle">
             <button id="side-buy" class="active" data-side="buy">Buy / Long</button>
             <button id="side-sell" data-side="sell">Sell / Short</button>
           </div>
+
           <div class="type-toggle">
             <button id="type-market" class="active" data-type="market">Market</button>
             <button id="type-limit" data-type="limit">Limit</button>
           </div>
-          <label class="field">
+
+          <label class="field" id="price-field">
             <span>Limit Price (USD)</span>
             <input id="trade-price" type="number" step="any" inputmode="decimal" disabled />
           </label>
+
           <label class="field">
-            <span>Size (USD notional)</span>
+            <span>Order Size (USD notional)</span>
             <input id="trade-size" type="number" step="any" min="0" inputmode="decimal" placeholder="0.00" />
           </label>
+          <div class="field-hint" id="trade-base">≈ 0.00000 BTC</div>
+
           <div class="lev">
             <span>Leverage</span>
             <div class="lev-options" id="lev-options">
@@ -179,12 +199,20 @@
               <button class="active" data-lev="5">5×</button><button data-lev="10">10×</button>
             </div>
           </div>
+
           <div class="quick-size" id="quick-size">
             <button data-pct="25">25%</button><button data-pct="50">50%</button>
             <button data-pct="75">75%</button><button data-pct="100">Max</button>
           </div>
+
+          <div class="order-summary" id="trade-margin-info">
+            <div><span>Order Value</span><b id="os-value">$0.00</b></div>
+            <div><span>MarginReq</span><b id="os-margin">$0.00</b></div>
+            <div><span>Liq. Price</span><b id="os-liq">—</b></div>
+          </div>
+
           <button id="trade-submit" class="btn-primary btn-block">Buy / Long BTC-PERP</button>
-          <p class="trade-info" id="trade-info">Max order: $10,000.00</p>
+          <p class="trade-info" id="trade-info">Available: $10,000.00</p>
         </div>
       </aside>
     </main>
