@@ -665,8 +665,11 @@
   }
 
   function enterApp() {
-    $("login-screen").hidden = true;
+    var ls = $("login-screen");
+    ls.hidden = true;
+    ls.style.display = "none";   // belt-and-suspenders: never overlay the app
     $("app").hidden = false;
+    $("app").style.display = "";
     setupChart();
     renderAll();
   }
@@ -675,7 +678,10 @@
     saveState();
     state = null;
     $("app").hidden = true;
-    $("login-screen").hidden = false;
+    $("app").style.display = "none";
+    var ls = $("login-screen");
+    ls.hidden = false;
+    ls.style.display = "";
     $("login-form").reset();
   }
 
