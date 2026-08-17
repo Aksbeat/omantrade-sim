@@ -200,25 +200,56 @@ a { color: var(--accent-2); }
 .ticker-stats span { white-space: nowrap; }
 .ticker-stats b { color: var(--text); font-family: var(--mono); font-weight: 600; }
 
-.chart-wrap { position: relative; flex: 1; min-height: 200px; }
-#chart { width: 100%; height: 100%; display: block; }
-.chart-interval {
-  position: absolute; top: 8px; right: 12px; display: flex; gap: 4px;
-  background: rgba(0,0,0,0.35); border-radius: 7px; padding: 3px;
+.charts-workspace { flex: 1; min-height: 200px; display: flex; flex-direction: column; }
+.charts-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  border-bottom: 1px solid var(--border); background: var(--panel);
 }
-.chart-interval button { font-size: 11px; padding: 4px 9px; border-radius: 5px; color: var(--muted); }
-.chart-interval button.active { background: var(--panel-2); color: var(--text); }
+.ct-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
+.ct-btn {
+  font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 6px;
+  color: var(--text); background: var(--panel-2); border: 1px solid var(--border);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.ct-btn:hover { background: #20262f; border-color: #2b3340; }
+.ct-btn.cast { margin-left: auto; color: var(--accent); border-color: rgba(240,185,11,0.4); }
+.ct-layout { display: flex; gap: 3px; background: rgba(0,0,0,0.3); border-radius: 7px; padding: 3px; }
+.ct-layout button {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px; color: var(--muted); background: transparent; border: none; cursor: pointer;
+}
+.ct-layout button:hover { color: var(--text); }
+.ct-layout button.active { background: var(--panel-2); color: var(--text); }
 
-.chart-tools {
-  position: absolute; top: 8px; left: 12px; display: flex; gap: 4px;
-  background: rgba(0,0,0,0.35); border-radius: 7px; padding: 3px; z-index: 2;
+.charts-grid { flex: 1; display: grid; gap: 6px; padding: 6px; min-height: 0; }
+.charts-grid.layout-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.charts-grid.layout-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.charts-grid.layout-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.charts-grid.layout-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+.chart-tile {
+  position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
 }
-.chart-tools button {
-  font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 5px;
-  color: var(--muted); background: transparent; border: 1px solid transparent;
+.chart-tile.active { border-color: rgba(240,185,11,0.5); }
+.tile-head {
+  display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-bottom: 1px solid var(--border);
+  background: var(--panel);
 }
-.chart-tools button:hover { color: var(--text); }
-.chart-tools button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+.tile-symbol { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); background: var(--bg-2); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; max-width: 130px; }
+.tile-tf, .tile-ind { display: flex; gap: 3px; }
+.tile-tf button, .tile-ind button {
+  font-size: 10px; font-weight: 600; padding: 3px 7px; border-radius: 5px; color: var(--muted);
+  background: transparent; border: 1px solid transparent; cursor: pointer;
+}
+.tile-tf button:hover, .tile-ind button:hover { color: var(--text); }
+.tile-tf button.active, .tile-ind button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+.tile-close {
+  margin-left: auto; font-size: 16px; line-height: 1; color: var(--muted); background: transparent;
+  border: none; cursor: pointer; padding: 0 4px;
+}
+.tile-close:hover { color: var(--sell); }
+.tile-body { flex: 1; min-height: 0; position: relative; }
+.tile-canvas { width: 100%; height: 100%; display: block; }
 
 .market-note {
   font-size: 10px; color: var(--muted-2); padding: 6px 12px 2px;

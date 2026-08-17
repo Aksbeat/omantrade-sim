@@ -312,9 +312,6 @@
   var orderType = "market";
   var leverage = 5;
   var selectedLeverage = 5;
-  var showMA = true;    // SMA(7) + EMA(12) overlays
-  var showBB = false;   // Bollinger Bands(20,2)
-  var showRSI = false;  // RSI(14) sub-pane
 
   function storageKey(user) { return "omantrade_" + btoa(unescape(encodeURIComponent(user.email || "anon"))); }
 
@@ -712,14 +709,172 @@
     drawChart();
   }
 
-  // ----------------------------- Chart -------------------------------------
-  var chartCanvas = null, chartCtx = null;
+  // ----------------------------- Chart (multi-tile) ------------------------
+  var charts = [];          // tiles: {id, symbol, tf, showMA, showBB, showRSI, canvas, ctx, el}
+  var activeChart = 0;
+  var chartSeq = 0;
+  var castChannel = (typeof BroadcastChannel !== "undefined") ? new BroadcastChannel("omantrade-cast") : null;
+
   function setupChart() {
-    chartCanvas = $("chart");
-    chartCtx = chartCanvas.getContext("2d");
-    window.addEventListener("resize", drawChart);
+    initCharts();
+    window.addEventListener("resize", resizeCharts);
   }
-  // ---- TA indicator math (computed from simulated candle closes) ----
+  function initCharts() {
+    charts = [];
+    addChart(currentSymbol, currentTimeframe, true);
+  }
+  function addChart(sym, tf, active) {
+    if (charts.length >= 4) return null;
+    var tile = { id: ++chartSeq, symbol: sym || currentSymbol, tf: tf || currentTimeframe, showMA: true, showBB: false, showRSI: false, canvas: null, ctx: null, el: null };
+    charts.push(tile);
+    renderChartsGrid();
+    buildTileEl(tile);
+    resizeCharts();
+    if (active) selectTile(tile.id, false);
+    return tile;
+  }
+  function removeChart(id) {
+    if (charts.length <= 1) return;
+    var idx = charts.findIndex(function (c) { return c.id === id; });
+    if (idx < 0) return;
+    var el = charts[idx].el; if (el && el.parentNode) el.parentNode.removeChild(el);
+    charts.splice(idx, 1);
+    if (activeChart === id) {
+      activeChart = charts[Math.min(idx, charts.length - 1)].id;
+      var at = charts.find(function (c) { return c.id === activeChart; });
+      currentSymbol = at.symbol; currentTimeframe = at.tf;
+    }
+    renderChartsGrid(); resizeCharts();
+    charts.forEach(function (c) { if (c.el) c.el.classList.toggle("active", c.id === activeChart); });
+    syncLayoutButtons();
+    renderTicker(); renderOrderBook(); renderTradePanel(); drawChart();
+  }
+  function setTileCount(n) {
+    n = clamp(n, 1, 4);
+    while (charts.length < n) addChart(currentSymbol, currentTimeframe, false);
+    while (charts.length > n) {
+      var last = charts[charts.length - 1];
+      if (last.el && last.el.parentNode) last.el.parentNode.removeChild(last.el);
+      charts.pop();
+    }
+    renderChartsGrid(); resizeCharts(); syncLayoutButtons(); drawChart();
+  }
+  function syncLayoutButtons() {
+    document.querySelectorAll(".ct-layout button").forEach(function (b) { b.classList.toggle("active", +b.dataset.layout === charts.length); });
+  }
+  function renderChartsGrid() {
+    var grid = $("charts-grid"); if (!grid) return;
+    grid.className = "charts-grid layout-" + charts.length;
+  }
+  function buildTileEl(tile) {
+    var grid = $("charts-grid");
+    var el = document.createElement("div");
+    el.className = "chart-tile";
+    el.dataset.id = tile.id;
+    var opts = ASSETS.map(function (a) {
+      return '<option value="' + a.symbol + '"' + (a.symbol === tile.symbol ? " selected" : "") + ">" + a.symbol + " · " + a.name + "</option>";
+    }).join("");
+    el.innerHTML =
+      '<div class="tile-head">' +
+        '<select class="tile-symbol" aria-label="Symbol">' + opts + "</select>" +
+        '<div class="tile-tf">' +
+          '<button data-tf="1m"' + (tile.tf === "1m" ? ' class="active"' : "") + ">1m</button>" +
+          '<button data-tf="5m"' + (tile.tf === "5m" ? ' class="active"' : "") + ">5m</button>" +
+          '<button data-tf="15m"' + (tile.tf === "15m" ? ' class="active"' : "") + ">15m</button>" +
+          '<button data-tf="1h"' + (tile.tf === "1h" ? ' class="active"' : "") + ">1h</button>" +
+        "</div>" +
+        '<div class="tile-ind">' +
+          '<button data-ind="ma"' + (tile.showMA ? ' class="active"' : "") + ">MA</button>" +
+          '<button data-ind="bb"' + (tile.showBB ? ' class="active"' : "") + ">BB</button>" +
+          '<button data-ind="rsi"' + (tile.showRSI ? ' class="active"' : "") + ">RSI</button>" +
+        "</div>" +
+        (charts.length > 1 ? '<button class="tile-close" title="Close chart">×</button>' : "") +
+      "</div>" +
+      '<div class="tile-body"><canvas class="tile-canvas"></canvas></div>';
+    grid.appendChild(el);
+    tile.el = el;
+    tile.canvas = el.querySelector(".tile-canvas");
+    tile.ctx = tile.canvas.getContext("2d");
+    el.addEventListener("click", function () { selectTile(tile.id, true); });
+    el.querySelector(".tile-symbol").addEventListener("change", function (e) {
+      tile.symbol = e.target.value;
+      if (activeChart === tile.id) {
+        currentSymbol = tile.symbol;
+        if (market[tile.symbol].meta.cat === "crypto") resubscribeBook();
+        renderTicker(); renderOrderBook();
+      }
+      loadHistory(tile.symbol, tile.tf); drawChart();
+    });
+    el.querySelectorAll(".tile-tf button").forEach(function (b) {
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        tile.tf = b.dataset.tf;
+        el.querySelectorAll(".tile-tf button").forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+        if (activeChart === tile.id) currentTimeframe = tile.tf;
+        loadHistory(tile.symbol, tile.tf); drawChart();
+      });
+    });
+    el.querySelectorAll(".tile-ind button").forEach(function (b) {
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        if (b.dataset.ind === "ma") tile.showMA = !tile.showMA;
+        if (b.dataset.ind === "bb") tile.showBB = !tile.showBB;
+        if (b.dataset.ind === "rsi") tile.showRSI = !tile.showRSI;
+        b.classList.toggle("active", b.dataset.ind === "ma" ? tile.showMA : b.dataset.ind === "bb" ? tile.showBB : tile.showRSI);
+        drawChart();
+      });
+    });
+    var closeBtn = el.querySelector(".tile-close");
+    if (closeBtn) closeBtn.addEventListener("click", function (ev) { ev.stopPropagation(); removeChart(tile.id); });
+  }
+  function selectTile(id, syncTrade) {
+    activeChart = id;
+    var t = charts.find(function (c) { return c.id === id; });
+    if (!t) return;
+    currentSymbol = t.symbol; currentTimeframe = t.tf;
+    charts.forEach(function (c) { if (c.el) c.el.classList.toggle("active", c.id === id); });
+    if (syncTrade) { renderTicker(); renderOrderBook(); renderTradePanel(); }
+    drawChart();
+  }
+  function resizeCharts() {
+    charts.forEach(function (t) {
+      if (!t.canvas) return;
+      var dpr = window.devicePixelRatio || 1;
+      var w = t.canvas.clientWidth, h = t.canvas.clientHeight;
+      if (w === 0 || h === 0) return;
+      t.canvas.width = w * dpr; t.canvas.height = h * dpr;
+      t.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+    drawChart();
+  }
+  function broadcastCast() {
+    if (!castChannel) return;
+    try {
+      var payload = { type: "tiles", tiles: charts.map(function (t) {
+        var m = market[t.symbol];
+        var bars = (m.liveCandles && m.liveCandles[t.tf]) || candlesFor(t.symbol, t.tf);
+        return { symbol: t.symbol, name: (m.meta && m.meta.name) || t.symbol, tf: t.tf, showMA: t.showMA, showBB: t.showBB, showRSI: t.showRSI, dec: (m.meta && m.meta.dec) || 2, price: m.price, candles: bars };
+      }) };
+      castChannel.postMessage(payload);
+    } catch (e) {}
+  }
+  function castToTV() {
+    var syms = charts.map(function (t) { return t.symbol; }).join(",");
+    var tfs = charts.map(function (t) { return t.tf; }).join(",");
+    var url = "tv.html?symbols=" + encodeURIComponent(syms) + "&tfs=" + encodeURIComponent(tfs);
+    try {
+      if (navigator.presentation && navigator.presentation.requestSession) {
+        navigator.presentation.requestSession(url).catch(function () { window.open(url, "omantrade_tv"); });
+        toast("Presenting… use your TV/Chromecast to receive the session");
+        return;
+      }
+    } catch (e) {}
+    window.open(url, "omantrade_tv", "fullscreen=yes");
+    toast("TV view opened — cast this tab via your browser (Chromecast/AirPlay) or HDMI");
+  }
+
+  // ---- TA indicator math (computed from candle closes) ----
   function sma(arr, n) {
     var out = [], sum = 0;
     for (var i = 0; i < arr.length; i++) {
@@ -768,27 +923,29 @@
   }
 
   function drawChart() {
-    if (!chartCanvas) return;
+    charts.forEach(function (t) { drawTile(t); });
+    broadcastCast();
+  }
+  function drawTile(tile) {
+    var canvas = tile.canvas, ctx = tile.ctx;
+    if (!canvas || !ctx) return;
     var dpr = window.devicePixelRatio || 1;
-    var w = chartCanvas.clientWidth, h = chartCanvas.clientHeight;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
     if (w === 0 || h === 0) return;
-    chartCanvas.width = w * dpr; chartCanvas.height = h * dpr;
-    chartCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var ctx = chartCtx;
-    ctx.clearRect(0, 0, w, h);
 
-    var bars = candlesFor(currentSymbol, currentTimeframe);
+    ctx.clearRect(0, 0, w, h);
+    var bars = candlesFor(tile.symbol, tile.tf);
     if (!bars.length) return;
-    var dec = market[currentSymbol].meta.dec;
-    var padR = 60, padT = 10, padB = 16;
-    var rsiH = showRSI ? Math.round(h * 0.22) : 0;
+    var dec = market[tile.symbol].meta.dec;
+    var padR = 58, padT = 10, padB = 14;
+    var rsiH = tile.showRSI ? Math.round(h * 0.22) : 0;
     var plotW = w - padR;
     var plotH = h - padT - padB - (rsiH ? rsiH + 10 : 0);
 
     var closes = bars.map(function (b) { return b.c; });
-    var ma = showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
-    var bb = showBB ? bollinger(closes, 20, 2) : null;
-    var rsiArr = showRSI ? rsi(closes, 14) : null;
+    var ma = tile.showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
+    var bb = tile.showBB ? bollinger(closes, 20, 2) : null;
+    var rsiArr = tile.showRSI ? rsi(closes, 14) : null;
 
     var hi = -Infinity, lo = Infinity;
     bars.forEach(function (b) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); });
@@ -807,20 +964,16 @@
       ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // grid + price axis
     ctx.strokeStyle = "#1b2030"; ctx.fillStyle = "#5c6373"; ctx.font = "10px monospace"; ctx.lineWidth = 1;
     for (var g = 0; g <= 5; g++) {
-      var p = lo + range * g / 5;
-      var yy = y(p);
+      var p = lo + range * g / 5; var yy = y(p);
       ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(plotW, yy); ctx.stroke();
       ctx.fillText(fmtPrice(p, dec), plotW + 4, yy + 3);
     }
 
-    // candles
     var cw = Math.max(1.5, plotW / bars.length * 0.6);
     bars.forEach(function (b, i) {
-      var up = b.c >= b.o;
-      var col = up ? "#2ebd85" : "#f6465d";
+      var up = b.c >= b.o, col = up ? "#2ebd85" : "#f6465d";
       ctx.strokeStyle = col; ctx.fillStyle = col;
       var xx = x(i);
       ctx.beginPath(); ctx.moveTo(xx, y(b.h)); ctx.lineTo(xx, y(b.l)); ctx.stroke();
@@ -829,43 +982,27 @@
       ctx.fillRect(xx - cw / 2, top, cw, bh);
     });
 
-    // Bollinger Bands (fill band + lines)
     if (bb) {
       ctx.fillStyle = "rgba(59,130,246,0.07)";
       ctx.beginPath(); var started = false;
       bars.forEach(function (b, i) { if (bb.upper[i] == null) return; var xx = x(i), yy = y(bb.upper[i]); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
       for (var k = bars.length - 1; k >= 0; k--) { if (bb.lower[k] == null) continue; ctx.lineTo(x(k), y(bb.lower[k])); }
       ctx.closePath(); ctx.fill();
-      line(bb.upper, "#3b82f6", 1);
-      line(bb.mid, "#3b82f6", 1, true);
-      line(bb.lower, "#3b82f6", 1);
+      line(bb.upper, "#3b82f6", 1); line(bb.mid, "#3b82f6", 1, true); line(bb.lower, "#3b82f6", 1);
     }
-    // Moving averages
     if (ma) { line(ma.sma, "#f0b90b", 1.4); line(ma.ema, "#e879f9", 1.4); }
 
-    // last price line
-    var last = bars[bars.length - 1].c;
-    var ly = y(last);
+    var last = bars[bars.length - 1].c, ly = y(last);
     ctx.strokeStyle = "#f0b90b"; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "#f0b90b";
-    ctx.fillRect(plotW, ly - 8, padR, 16);
+    ctx.fillStyle = "#f0b90b"; ctx.fillRect(plotW, ly - 8, padR, 16);
     ctx.fillStyle = "#1a1400"; ctx.font = "bold 10px monospace";
     ctx.fillText(fmtPrice(last, dec), plotW + 4, ly + 3);
 
-    // indicator legend
-    var lx = 8, lg = padT + 12;
-    ctx.font = "10px monospace"; ctx.textAlign = "left";
-    if (ma) { ctx.fillStyle = "#f0b90b"; ctx.fillText("SMA7", lx, lg); ctx.fillStyle = "#e879f9"; ctx.fillText("EMA12", lx + 36, lg); }
-    if (bb) { ctx.fillStyle = "#3b82f6"; ctx.fillText("BB20", lx + 78, lg); }
-    ctx.textAlign = "start";
-
-    // RSI sub-pane
-    if (showRSI && rsiArr) {
+    if (tile.showRSI && rsiArr) {
       var rTop = padT + plotH + 10, rBot = rTop + rsiH;
       ctx.fillStyle = "#0d0f15"; ctx.fillRect(0, rTop, plotW, rsiH);
-      ctx.strokeStyle = "#1b2030";
       [30, 50, 70].forEach(function (lv) {
         var yy = rBot - (lv / 100) * rsiH;
         ctx.strokeStyle = lv === 50 ? "#1b2030" : "rgba(246,70,93,0.25)";
@@ -876,14 +1013,18 @@
       var started2 = false;
       bars.forEach(function (b, i) { if (rsiArr[i] == null) return; var xx = x(i), yy = rBot - (rsiArr[i] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); });
       ctx.stroke();
-      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace";
-      ctx.fillText("RSI(14)", 6, rTop + 12);
+      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("RSI(14)", 6, rTop + 12);
     }
   }
 
   // ----------------------------- Interaction -------------------------------
   function selectSymbol(sym) {
     currentSymbol = sym;
+    var at = charts.find(function (c) { return c.id === activeChart; });
+    if (at) {
+      at.symbol = sym;
+      if (at.el) { var sel = at.el.querySelector(".tile-symbol"); if (sel) sel.value = sym; }
+    }
     loadHistory(sym, currentTimeframe);
     if (market[sym].meta.cat === "crypto") resubscribeBook();
     renderAll();
@@ -925,30 +1066,15 @@
       });
     });
 
-    // chart interval
-    Array.prototype.forEach.call(document.querySelectorAll("#chart-interval button"), function (b) {
-      b.addEventListener("click", function () {
-        document.querySelectorAll("#chart-interval button").forEach(function (x) { x.classList.remove("active"); });
-        b.classList.add("active");
-        currentTimeframe = b.dataset.tf;
-        loadHistory(currentSymbol, currentTimeframe);
-        drawChart();
-      });
+    // charts toolbar: add chart / layout / cast
+    $("add-chart").addEventListener("click", function () {
+      if (charts.length >= 4) { toast("Maximum 4 charts"); return; }
+      setTileCount(charts.length + 1);
     });
-
-    // indicator toggles
-    Array.prototype.forEach.call(document.querySelectorAll("#chart-tools button"), function (b) {
-      if (b.dataset.ind === "ma") b.classList.toggle("active", showMA);
-      if (b.dataset.ind === "bb") b.classList.toggle("active", showBB);
-      if (b.dataset.ind === "rsi") b.classList.toggle("active", showRSI);
-      b.addEventListener("click", function () {
-        if (b.dataset.ind === "ma") showMA = !showMA;
-        if (b.dataset.ind === "bb") showBB = !showBB;
-        if (b.dataset.ind === "rsi") showRSI = !showRSI;
-        b.classList.toggle("active", b.dataset.ind === "ma" ? showMA : b.dataset.ind === "bb" ? showBB : showRSI);
-        drawChart();
-      });
+    Array.prototype.forEach.call(document.querySelectorAll(".ct-layout button"), function (b) {
+      b.addEventListener("click", function () { setTileCount(+b.dataset.layout); });
     });
+    $("cast-tv").addEventListener("click", castToTV);
 
     // side / type toggles
     $("side-buy").addEventListener("click", function () { side = "buy"; setToggle("side"); renderTradePanel(); });
@@ -1008,6 +1134,7 @@
     startLive();
     loadHistory(currentSymbol, currentTimeframe);
     renderAll();
+    resizeCharts();
   }
 
   function logout() {

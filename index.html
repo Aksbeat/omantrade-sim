@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
   <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 </head>
 <body>
@@ -122,19 +122,18 @@
           <div class="ticker-change" id="ticker-change">0.00%</div>
           <div class="ticker-stats" id="ticker-stats"></div>
         </div>
-        <div class="chart-wrap">
-          <canvas id="chart" aria-label="Price chart"></canvas>
-          <div class="chart-tools" id="chart-tools">
-            <button data-ind="ma" class="active" title="SMA(7) + EMA(12)">MA</button>
-            <button data-ind="bb" title="Bollinger Bands(20,2)">BB</button>
-            <button data-ind="rsi" title="RSI(14)">RSI</button>
+        <div class="charts-workspace">
+          <div class="charts-toolbar">
+            <span class="ct-title">Charts</span>
+            <button id="add-chart" class="ct-btn" title="Add a chart (up to 4)">+ Chart</button>
+            <div class="ct-layout" role="group" aria-label="Chart layout">
+              <button data-layout="1" class="active" title="1 chart">1</button>
+              <button data-layout="2" title="2 charts">2</button>
+              <button data-layout="4" title="4 charts">4</button>
+            </div>
+            <button id="cast-tv" class="ct-btn cast" title="Open TV / cast view">📺 Cast to TV</button>
           </div>
-          <div class="chart-interval" id="chart-interval">
-            <button data-tf="1m" class="active">1m</button>
-            <button data-tf="5m">5m</button>
-            <button data-tf="15m">15m</button>
-            <button data-tf="1h">1h</button>
-          </div>
+          <div class="charts-grid" id="charts-grid"></div>
         </div>
         <div class="bottom-tabs">
           <div class="tab-head">
@@ -227,6 +226,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
