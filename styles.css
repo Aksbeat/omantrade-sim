@@ -203,6 +203,26 @@ a { color: var(--accent-2); }
 .chart-interval button { font-size: 11px; padding: 4px 9px; border-radius: 5px; color: var(--muted); }
 .chart-interval button.active { background: var(--panel-2); color: var(--text); }
 
+.chart-tools {
+  position: absolute; top: 8px; left: 12px; display: flex; gap: 4px;
+  background: rgba(0,0,0,0.35); border-radius: 7px; padding: 3px; z-index: 2;
+}
+.chart-tools button {
+  font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 5px;
+  color: var(--muted); background: transparent; border: 1px solid transparent;
+}
+.chart-tools button:hover { color: var(--text); }
+.chart-tools button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+
+.market-note {
+  font-size: 10px; color: var(--muted-2); padding: 6px 12px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.market-group-head {
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted-2); padding: 10px 12px 4px; background: var(--panel);
+}
+
 .bottom-tabs { border-top: 1px solid var(--border); height: 250px; display: flex; flex-direction: column; background: var(--panel); }
 .tab-head { display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--border); }
 .tab { font-size: 12.5px; padding: 8px 12px; color: var(--muted); border-bottom: 2px solid transparent; }

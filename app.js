@@ -11,18 +11,31 @@
   var TICK_MS = 1000;           // price engine tick
   var HISTORY_CAP = 6000;       // raw price ticks retained per asset
 
-  // Simulated markets (base prices are illustrative, not live feeds)
+  // Simulated markets. Crypto perps use USD; MSX stocks use OMR.
+  // NOTE: MSX has no free in-browser API, so these are simulated listings
+  // (real company names, illustrative base prices) consistent with the sim.
   var ASSETS = [
-    { symbol: "BTC-PERP",  name: "Bitcoin",   price: 64800,  vol: 0.0016, dec: 1 },
-    { symbol: "ETH-PERP",  name: "Ethereum",  price: 3380,   vol: 0.0020, dec: 2 },
-    { symbol: "SOL-PERP",  name: "Solana",    price: 148.2,  vol: 0.0030, dec: 2 },
-    { symbol: "BNB-PERP",  name: "BNB",       price: 585,    vol: 0.0022, dec: 2 },
-    { symbol: "XRP-PERP",  name: "XRP",       price: 0.582,  vol: 0.0030, dec: 4 },
-    { symbol: "ADA-PERP",  name: "Cardano",   price: 0.461,  vol: 0.0032, dec: 4 },
-    { symbol: "DOGE-PERP", name: "Dogecoin",  price: 0.1234, vol: 0.0040, dec: 5 },
-    { symbol: "AVAX-PERP", name: "Avalanche", price: 36.1,   vol: 0.0030, dec: 2 },
-    { symbol: "LINK-PERP", name: "Chainlink", price: 14.25,  vol: 0.0032, dec: 3 },
-    { symbol: "MATIC-PERP",name: "Polygon",   price: 0.724,  vol: 0.0034, dec: 4 }
+    { symbol: "BTC-PERP",  name: "Bitcoin",   price: 64800,  vol: 0.0016, dec: 1, cat: "crypto", cur: "USD" },
+    { symbol: "ETH-PERP",  name: "Ethereum",  price: 3380,   vol: 0.0020, dec: 2, cat: "crypto", cur: "USD" },
+    { symbol: "SOL-PERP",  name: "Solana",    price: 148.2,  vol: 0.0030, dec: 2, cat: "crypto", cur: "USD" },
+    { symbol: "BNB-PERP",  name: "BNB",       price: 585,    vol: 0.0022, dec: 2, cat: "crypto", cur: "USD" },
+    { symbol: "XRP-PERP",  name: "XRP",       price: 0.582,  vol: 0.0030, dec: 4, cat: "crypto", cur: "USD" },
+    { symbol: "ADA-PERP",  name: "Cardano",   price: 0.461,  vol: 0.0032, dec: 4, cat: "crypto", cur: "USD" },
+    { symbol: "DOGE-PERP", name: "Dogecoin",  price: 0.1234, vol: 0.0040, dec: 5, cat: "crypto", cur: "USD" },
+    { symbol: "AVAX-PERP", name: "Avalanche", price: 36.1,   vol: 0.0030, dec: 2, cat: "crypto", cur: "USD" },
+    { symbol: "LINK-PERP", name: "Chainlink", price: 14.25,  vol: 0.0032, dec: 3, cat: "crypto", cur: "USD" },
+    { symbol: "MATIC-PERP",name: "Polygon",   price: 0.724,  vol: 0.0034, dec: 4, cat: "crypto", cur: "USD" },
+    // ---- Muscat Securities Exchange (MSX) — simulated ----
+    { symbol: "BKMB",  name: "Bank Muscat",          price: 0.620, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "OMTEL", name: "Omantel",              price: 0.850, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "ORAT",  name: "Ooredoo Oman",         price: 0.108, vol: 0.0060, dec: 4, cat: "stock", cur: "OMR" },
+    { symbol: "OQ",    name: "OQ",                   price: 1.180, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "SIB",   name: "Sohar International",  price: 0.205, vol: 0.0050, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "ALIZ",  name: "Alizz Islamic Bank",   price: 0.122, vol: 0.0060, dec: 4, cat: "stock", cur: "OMR" },
+    { symbol: "NBO",   name: "National Bank of Oman", price: 0.182, vol: 0.0050, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "AHLI",  name: "Ahli Bank",            price: 0.142, vol: 0.0060, dec: 4, cat: "stock", cur: "OMR" },
+    { symbol: "OAB",   name: "Oman Arab Bank",       price: 0.305, vol: 0.0050, dec: 3, cat: "stock", cur: "OMR" },
+    { symbol: "VOLT",  name: "Voltamp Energy",       price: 11.20, vol: 0.0050, dec: 2, cat: "stock", cur: "OMR" }
   ];
 
   // ----------------------------- Helpers -----------------------------------
@@ -122,6 +135,9 @@
   var orderType = "market";
   var leverage = 5;
   var selectedLeverage = 5;
+  var showMA = true;    // SMA(7) + EMA(12) overlays
+  var showBB = false;   // Bollinger Bands(20,2)
+  var showRSI = false;  // RSI(14) sub-pane
 
   function storageKey(user) { return "omantrade_" + btoa(unescape(encodeURIComponent(user.email || "anon"))); }
 
@@ -289,22 +305,34 @@
     var list = $("market-list");
     list.innerHTML = "";
     var f = (filter || "").toUpperCase();
-    ASSETS.forEach(function (a) {
-      if (f && a.symbol.indexOf(f) < 0 && a.name.toUpperCase().indexOf(f) < 0) return;
-      var m = market[a.symbol];
-      var chg = ((m.price - m.open24h) / m.open24h) * 100;
-      var row = el("div", "market-row" + (a.symbol === currentSymbol ? " active" : ""));
-      row.setAttribute("role", "option");
-      row.dataset.symbol = a.symbol;
-      var left = el("div");
-      left.appendChild(el("div", "m-name", a.symbol));
-      left.appendChild(el("div", "m-sub", a.name));
-      var right = el("div");
-      right.appendChild(el("div", "m-price", fmtPrice(m.price, a.dec)));
-      right.appendChild(el("div", "m-chg " + (chg >= 0 ? "green" : "red"), fmtPct(chg)));
-      row.appendChild(left); row.appendChild(right);
-      row.addEventListener("click", function () { selectSymbol(a.symbol); });
-      list.appendChild(row);
+    var groups = [
+      { key: "crypto", title: "Crypto Perpetuals" },
+      { key: "stock", title: "MSX Stocks · Oman" }
+    ];
+    groups.forEach(function (grp) {
+      var items = ASSETS.filter(function (a) {
+        if (a.cat !== grp.key) return false;
+        if (f && a.symbol.indexOf(f) < 0 && a.name.toUpperCase().indexOf(f) < 0) return false;
+        return true;
+      });
+      if (!items.length) return;
+      list.appendChild(el("div", "market-group-head", grp.title));
+      items.forEach(function (a) {
+        var m = market[a.symbol];
+        var chg = ((m.price - m.open24h) / m.open24h) * 100;
+        var row = el("div", "market-row" + (a.symbol === currentSymbol ? " active" : ""));
+        row.setAttribute("role", "option");
+        row.dataset.symbol = a.symbol;
+        var left = el("div");
+        left.appendChild(el("div", "m-name", a.symbol));
+        left.appendChild(el("div", "m-sub", a.name + (a.cat === "stock" ? " · SIM" : "")));
+        var right = el("div");
+        right.appendChild(el("div", "m-price", fmtPrice(m.price, a.dec)));
+        right.appendChild(el("div", "m-chg " + (chg >= 0 ? "green" : "red"), fmtPct(chg)));
+        row.appendChild(left); row.appendChild(right);
+        row.addEventListener("click", function () { selectSymbol(a.symbol); });
+        list.appendChild(row);
+      });
     });
   }
 
@@ -455,7 +483,10 @@
     var sym = currentSymbol;
     var m = market[sym];
     var dec = m.meta.dec;
-    $("perp-tag").innerHTML = sym + " · <b>Perpetual Futures</b>";
+    var catLabel = m.meta.cat === "stock"
+      ? "<b>MSX Stock</b>"
+      : "<b>Perpetual Futures</b>";
+    $("perp-tag").innerHTML = sym + " · " + catLabel;
     var submit = $("trade-submit");
     submit.textContent = (side === "buy" ? "Buy / Long " : "Sell / Short ") + sym;
     submit.style.background = side === "buy"
@@ -509,6 +540,54 @@
     chartCtx = chartCanvas.getContext("2d");
     window.addEventListener("resize", drawChart);
   }
+  // ---- TA indicator math (computed from simulated candle closes) ----
+  function sma(arr, n) {
+    var out = [], sum = 0;
+    for (var i = 0; i < arr.length; i++) {
+      sum += arr[i];
+      if (i >= n) sum -= arr[i - n];
+      out.push(i >= n - 1 ? sum / n : null);
+    }
+    return out;
+  }
+  function ema(arr, n) {
+    var out = [], k = 2 / (n + 1), prev = arr[0];
+    for (var i = 0; i < arr.length; i++) {
+      prev = i === 0 ? arr[0] : arr[i] * k + prev * (1 - k);
+      out.push(i >= n - 1 ? prev : null);
+    }
+    return out;
+  }
+  function bollinger(arr, n, mult) {
+    var mid = sma(arr, n), up = [], lo = [];
+    for (var i = 0; i < arr.length; i++) {
+      if (mid[i] == null) { up.push(null); lo.push(null); continue; }
+      var s = 0, c = 0;
+      for (var j = i - n + 1; j <= i; j++) { if (j >= 0) { var d = arr[j] - mid[i]; s += d * d; c++; } }
+      var sd = Math.sqrt(s / c);
+      up.push(mid[i] + mult * sd); lo.push(mid[i] - mult * sd);
+    }
+    return { mid: mid, upper: up, lower: lo };
+  }
+  function rsi(arr, n) {
+    var gains = [], losses = [];
+    for (var i = 0; i < arr.length; i++) {
+      if (i === 0) { gains.push(0); losses.push(0); continue; }
+      var ch = arr[i] - arr[i - 1];
+      gains.push(ch > 0 ? ch : 0); losses.push(ch < 0 ? -ch : 0);
+    }
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      if (i < n) { out.push(null); continue; }
+      var g = 0, l = 0;
+      for (var j = i - n + 1; j <= i; j++) { g += gains[j]; l += losses[j]; }
+      g /= n; l /= n;
+      if (l === 0) out.push(100);
+      else { var rs = g / l; out.push(100 - 100 / (1 + rs)); }
+    }
+    return out;
+  }
+
   function drawChart() {
     if (!chartCanvas) return;
     var dpr = window.devicePixelRatio || 1;
@@ -521,22 +600,38 @@
 
     var bars = candlesFor(currentSymbol, currentTimeframe);
     if (!bars.length) return;
-    var padR = 58, padT = 10, padB = 16;
-    var plotW = w - padR, plotH = h - padT - padB;
+    var dec = market[currentSymbol].meta.dec;
+    var padR = 60, padT = 10, padB = 16;
+    var rsiH = showRSI ? Math.round(h * 0.22) : 0;
+    var plotW = w - padR;
+    var plotH = h - padT - padB - (rsiH ? rsiH + 10 : 0);
+
+    var closes = bars.map(function (b) { return b.c; });
+    var ma = showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
+    var bb = showBB ? bollinger(closes, 20, 2) : null;
+    var rsiArr = showRSI ? rsi(closes, 14) : null;
 
     var hi = -Infinity, lo = Infinity;
     bars.forEach(function (b) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); });
+    function span(arr) { arr.forEach(function (v) { if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }); }
+    if (ma) { span(ma.sma); span(ma.ema); }
+    if (bb) { span(bb.upper); span(bb.lower); }
     var range = hi - lo || 1; lo -= range * 0.05; hi += range * 0.05; range = hi - lo;
-    var dec = market[currentSymbol].meta.dec;
 
     function y(p) { return padT + (1 - (p - lo) / range) * plotH; }
     function x(i) { return (i + 0.5) / bars.length * plotW; }
+    function line(arr, color, width, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.setLineDash(dash ? [4, 3] : []); ctx.beginPath();
+      var started = false;
+      bars.forEach(function (b, i) { var v = arr[i]; if (v == null) return; var xx = x(i), yy = y(v); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
 
     // grid + price axis
     ctx.strokeStyle = "#1b2030"; ctx.fillStyle = "#5c6373"; ctx.font = "10px monospace"; ctx.lineWidth = 1;
-    var lines = 5;
-    for (var g = 0; g <= lines; g++) {
-      var p = lo + range * g / lines;
+    for (var g = 0; g <= 5; g++) {
+      var p = lo + range * g / 5;
       var yy = y(p);
       ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(plotW, yy); ctx.stroke();
       ctx.fillText(fmtPrice(p, dec), plotW + 4, yy + 3);
@@ -555,6 +650,20 @@
       ctx.fillRect(xx - cw / 2, top, cw, bh);
     });
 
+    // Bollinger Bands (fill band + lines)
+    if (bb) {
+      ctx.fillStyle = "rgba(59,130,246,0.07)";
+      ctx.beginPath(); var started = false;
+      bars.forEach(function (b, i) { if (bb.upper[i] == null) return; var xx = x(i), yy = y(bb.upper[i]); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
+      for (var k = bars.length - 1; k >= 0; k--) { if (bb.lower[k] == null) continue; ctx.lineTo(x(k), y(bb.lower[k])); }
+      ctx.closePath(); ctx.fill();
+      line(bb.upper, "#3b82f6", 1);
+      line(bb.mid, "#3b82f6", 1, true);
+      line(bb.lower, "#3b82f6", 1);
+    }
+    // Moving averages
+    if (ma) { line(ma.sma, "#f0b90b", 1.4); line(ma.ema, "#e879f9", 1.4); }
+
     // last price line
     var last = bars[bars.length - 1].c;
     var ly = y(last);
@@ -565,6 +674,32 @@
     ctx.fillRect(plotW, ly - 8, padR, 16);
     ctx.fillStyle = "#1a1400"; ctx.font = "bold 10px monospace";
     ctx.fillText(fmtPrice(last, dec), plotW + 4, ly + 3);
+
+    // indicator legend
+    var lx = 8, lg = padT + 12;
+    ctx.font = "10px monospace"; ctx.textAlign = "left";
+    if (ma) { ctx.fillStyle = "#f0b90b"; ctx.fillText("SMA7", lx, lg); ctx.fillStyle = "#e879f9"; ctx.fillText("EMA12", lx + 36, lg); }
+    if (bb) { ctx.fillStyle = "#3b82f6"; ctx.fillText("BB20", lx + 78, lg); }
+    ctx.textAlign = "start";
+
+    // RSI sub-pane
+    if (showRSI && rsiArr) {
+      var rTop = padT + plotH + 10, rBot = rTop + rsiH;
+      ctx.fillStyle = "#0d0f15"; ctx.fillRect(0, rTop, plotW, rsiH);
+      ctx.strokeStyle = "#1b2030";
+      [30, 50, 70].forEach(function (lv) {
+        var yy = rBot - (lv / 100) * rsiH;
+        ctx.strokeStyle = lv === 50 ? "#1b2030" : "rgba(246,70,93,0.25)";
+        ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(plotW, yy); ctx.stroke();
+        ctx.fillStyle = "#5c6373"; ctx.fillText(String(lv), plotW + 4, yy + 3);
+      });
+      ctx.strokeStyle = "#f0b90b"; ctx.lineWidth = 1.4; ctx.beginPath();
+      var started2 = false;
+      bars.forEach(function (b, i) { if (rsiArr[i] == null) return; var xx = x(i), yy = rBot - (rsiArr[i] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); });
+      ctx.stroke();
+      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace";
+      ctx.fillText("RSI(14)", 6, rTop + 12);
+    }
   }
 
   // ----------------------------- Interaction -------------------------------
@@ -612,6 +747,20 @@
         document.querySelectorAll("#chart-interval button").forEach(function (x) { x.classList.remove("active"); });
         b.classList.add("active");
         currentTimeframe = b.dataset.tf;
+        drawChart();
+      });
+    });
+
+    // indicator toggles
+    Array.prototype.forEach.call(document.querySelectorAll("#chart-tools button"), function (b) {
+      if (b.dataset.ind === "ma") b.classList.toggle("active", showMA);
+      if (b.dataset.ind === "bb") b.classList.toggle("active", showBB);
+      if (b.dataset.ind === "rsi") b.classList.toggle("active", showRSI);
+      b.addEventListener("click", function () {
+        if (b.dataset.ind === "ma") showMA = !showMA;
+        if (b.dataset.ind === "bb") showBB = !showBB;
+        if (b.dataset.ind === "rsi") showRSI = !showRSI;
+        b.classList.toggle("active", b.dataset.ind === "ma" ? showMA : b.dataset.ind === "bb" ? showBB : showRSI);
         drawChart();
       });
     });

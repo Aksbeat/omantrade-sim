@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
   <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 </head>
 <body>
@@ -109,6 +109,7 @@
         <div class="panel-head">
           <input id="market-search" type="search" placeholder="Search market…" aria-label="Search market" />
         </div>
+        <div class="market-note">MSX prices are simulated · real feed can be plugged in</div>
         <div class="market-list" id="market-list" role="listbox" aria-label="Available markets"></div>
       </section>
 
@@ -122,6 +123,11 @@
         </div>
         <div class="chart-wrap">
           <canvas id="chart" aria-label="Price chart"></canvas>
+          <div class="chart-tools" id="chart-tools">
+            <button data-ind="ma" class="active" title="SMA(7) + EMA(12)">MA</button>
+            <button data-ind="bb" title="Bollinger Bands(20,2)">BB</button>
+            <button data-ind="rsi" title="RSI(14)">RSI</button>
+          </div>
           <div class="chart-interval" id="chart-interval">
             <button data-tf="1m" class="active">1m</button>
             <button data-tf="5m">5m</button>
@@ -220,6 +226,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
