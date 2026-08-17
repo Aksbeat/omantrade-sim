@@ -15,7 +15,7 @@
   // NOTE: MSX has no free in-browser API, so these are simulated listings
   // (real company names, illustrative base prices) consistent with the sim.
   // Build version — bump with each deploy and mirror in index.html asset query.
-  var VERSION = "v7";
+  var VERSION = "v8";
 
   // Crypto perps are loaded LIVE from Hyperliquid's full universe at runtime
   // (see loadUniverse). A few popular fallbacks are kept so the app still works
@@ -207,10 +207,17 @@
         setLiveBadge(true, "LIVE · Hyperliquid");
       }).catch(function () { /* keep simulation */ });
     } else if (m.meta.cat === "us" && CONFIG.STOCK_PROXY_URL) {
+      setUSStatus("yfinance: connecting…", "");
       proxyCandles(sym, tf).then(function (d) {
         storeLiveCandles(sym, tf, d.candles, d.price);
         setLiveBadge(true, "LIVE · yfinance");
-      }).catch(function () { /* keep simulation */ });
+        setUSStatus("<b style='color:#2ebd85'>yfinance: live</b>", "");
+      }).catch(function (err) {
+        setUSStatus("<b style='color:#f6465d'>yfinance: unreachable</b> (sim) — check ⚙ proxy URL / CORS", "");
+        toast("US stocks using simulation: yfinance proxy unreachable (" + (err && err.message ? err.message : "error") + "). Set a working proxy via ⚙.", "error");
+      });
+    } else if (m.meta.cat === "us") {
+      setUSStatus("yfinance: not set (⚙ to enable)", "");
     }
   }
 
@@ -352,6 +359,12 @@
     b.hidden = !on;
     if (label) b.textContent = label;
   }
+  function setUSStatus(html, cls) {
+    var el = document.getElementById("us-status");
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = cls || "";
+  }
 
   function stepMarket() {
     ASSETS.forEach(function (a) {
@@ -402,16 +415,28 @@
 
   function loadState(user) {
     var raw = localStorage.getItem(storageKey(user));
+    var s;
     if (raw) {
-      try { return JSON.parse(raw); } catch (e) {}
+      try { s = JSON.parse(raw); } catch (e) {}
     }
-    return {
-      user: user,
-      wallet: STARTING_BALANCE,
-      positions: [],   // {symbol, side, notional, entry, lev}
-      orders: [],      // {id, symbol, side, type, price, notional, lev}
-      history: []      // {time, symbol, side, type, price, notional}
-    };
+    if (!s) s = {};
+    s.user = user;
+    if (typeof s.wallet !== "number") s.wallet = STARTING_BALANCE;
+    if (!Array.isArray(s.positions)) s.positions = [];
+    if (!Array.isArray(s.orders)) s.orders = [];
+    if (!Array.isArray(s.history)) s.history = [];
+    if (typeof s.realized !== "number") s.realized = 0;
+    if (!Array.isArray(s.equityHistory) || !s.equityHistory.length) s.equityHistory = [{ t: Date.now(), eq: s.wallet }];
+    return s;
+  }
+  function recordEquity() {
+    var eq = equity();
+    var h = state.equityHistory;
+    var last = h[h.length - 1];
+    if (!last || Math.abs(last.eq - eq) > 0.01) {
+      h.push({ t: Date.now(), eq: eq });
+      if (h.length > 600) h.shift();
+    }
   }
   function saveState() {
     if (state) localStorage.setItem(storageKey(state.user), JSON.stringify(state));
@@ -487,6 +512,10 @@
       pos.lev = Math.max(pos.lev, o.lev);
     } else {
       // opposite side: reduce / close / flip
+      var dir = pos.side === "buy" ? 1 : -1;
+      var closed = Math.min(o.notional, pos.notional);
+      var realized = (o.price - pos.entry) * dir * (closed / pos.entry);
+      state.realized = (state.realized || 0) + realized;
       if (o.notional < pos.notional) {
         pos.notional -= o.notional;
       } else if (o.notional === pos.notional) {
@@ -501,11 +530,12 @@
     }
     state.history.unshift({
       time: Date.now(), symbol: o.symbol, side: o.side,
-      type: o.type || "market", price: o.price, notional: o.notional
+      type: o.type || "market", price: o.price, notional: o.notional,
+      pnl: (typeof realized !== "undefined" ? realized : undefined)
     });
     if (state.history.length > 200) state.history.pop();
 
-    saveState(); renderAll();
+    recordEquity(); saveState(); renderAll();
     toast((o.side === "buy" ? "Bought " : "Sold ") + fmtUSD(o.notional) + " " + o.symbol, "success");
   }
 
@@ -518,9 +548,11 @@
       if (liquidated) {
         var loss = marginUsed(pos);
         state.wallet -= loss;
-        state.history.unshift({ time: Date.now(), symbol: pos.symbol, side: "liquidate", type: "liq", price: m, notional: pos.notional });
+        state.realized = (state.realized || 0) - loss;
+        state.history.unshift({ time: Date.now(), symbol: pos.symbol, side: "liquidate", type: "liq", price: m, notional: pos.notional, pnl: -loss });
         toast("⚠ " + pos.symbol + " liquidated", "error");
         changed = true;
+        recordEquity();
       }
       return !liquidated;
     });
@@ -547,9 +579,10 @@
     var m = market[symbol].price;
     var pnl = unrealizedPnL(pos);
     state.wallet += pnl;
-    state.history.unshift({ time: Date.now(), symbol: symbol, side: pos.side === "buy" ? "sell" : "buy", type: "close", price: m, notional: pos.notional });
+    state.realized = (state.realized || 0) + pnl;
+    state.history.unshift({ time: Date.now(), symbol: symbol, side: pos.side === "buy" ? "sell" : "buy", type: "close", price: m, notional: pos.notional, pnl: pnl });
     state.positions = state.positions.filter(function (p) { return p !== pos; });
-    saveState(); renderAll();
+    recordEquity(); saveState(); renderAll();
     toast("Closed " + symbol + " (" + (pnl >= 0 ? "+" : "") + fmtUSD(pnl) + ")", pnl >= 0 ? "success" : "error");
   }
 
@@ -793,8 +826,86 @@
     renderPositions();
     renderOrders();
     renderHistory();
+    renderPerformance();
     renderTradePanel();
     drawChart();
+  }
+
+  // ----------------------------- Performance (students) ----------------------
+  function renderPerformance() {
+    var pane = $("perf-body"); if (!pane) return;
+    var eq = equity(), start = STARTING_BALANCE;
+    var ret = eq - start, retPct = (ret / start) * 100;
+    var unreal = totalUnrealized();
+    var realized = state.realized || 0;
+    var trades = state.history.filter(function (h) { return h.type !== "liq"; });
+    var counted = state.history.filter(function (h) { return typeof h.pnl === "number"; });
+    var wins = counted.filter(function (h) { return h.pnl > 0; }).length;
+    var losses = counted.filter(function (h) { return h.pnl < 0; }).length;
+    var winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
+    var best = counted.length ? Math.max.apply(null, counted.map(function (h) { return h.pnl; })) : 0;
+    var worst = counted.length ? Math.min.apply(null, counted.map(function (h) { return h.pnl; })) : 0;
+    var mu = state.positions.reduce(function (s, p) { return s + marginUsed(p); }, 0);
+    var exposure = eq > 0 ? (state.positions.reduce(function (s, p) { return s + p.notional; }, 0) / eq) * 100 : 0;
+    var liqRisk = eq > 0 ? (mu / eq) * 100 : 0;
+
+    // max drawdown from equity curve
+    var peak = -Infinity, maxDD = 0;
+    state.equityHistory.forEach(function (p) {
+      if (p.eq > peak) peak = p.eq;
+      var dd = peak > 0 ? (peak - p.eq) / peak * 100 : 0;
+      if (dd > maxDD) maxDD = dd;
+    });
+
+    function stat(label, val, cls) {
+      return "<div class='perf-stat'><span class='perf-label'>" + label + "</span><span class='perf-val " + (cls || "") + "'>" + val + "</span></div>";
+    }
+    pane.innerHTML =
+      "<div class='perf-grid'>" +
+        stat("Starting Capital", fmtUSD(start)) +
+        stat("Current Equity", fmtUSD(eq)) +
+        stat("Total Return", (ret >= 0 ? "+" : "") + fmtUSD(ret) + " (" + (retPct >= 0 ? "+" : "") + retPct.toFixed(2) + "%)", ret >= 0 ? "green" : "red") +
+        stat("Realized PnL", (realized >= 0 ? "+" : "") + fmtUSD(realized), realized >= 0 ? "green" : "red") +
+        stat("Unrealized PnL", (unreal >= 0 ? "+" : "") + fmtUSD(unreal), unreal >= 0 ? "green" : "red") +
+        stat("Open Positions", String(state.positions.length)) +
+        stat("Trades Closed", String(counted.length)) +
+        stat("Win Rate", winRate.toFixed(1) + "%", winRate >= 50 ? "green" : "") +
+        stat("Best Trade", (best >= 0 ? "+" : "") + fmtUSD(best), "green") +
+        stat("Worst Trade", (worst >= 0 ? "+" : "") + fmtUSD(worst), "red") +
+        stat("Max Drawdown", "-" + maxDD.toFixed(2) + "%", "red") +
+        stat("Exposure", exposure.toFixed(1) + "%") +
+        stat("Margin Used", fmtUSD(mu)) +
+        stat("Liquidation Risk", liqRisk.toFixed(1) + "%", liqRisk > 70 ? "red" : (liqRisk > 40 ? "" : "green")) +
+      "</div>" +
+      "<div class='perf-chart-wrap'><div class='perf-chart-title'>Equity Curve</div><canvas id='perf-spark'></canvas></div>";
+
+    var cv = $("perf-spark");
+    if (cv) {
+      var dpr = window.devicePixelRatio || 1;
+      var cw = cv.clientWidth || 300, ch = cv.clientHeight || 120;
+      cv.width = cw * dpr; cv.height = ch * dpr;
+      var ctx = cv.getContext && cv.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cw, ch);
+      var pts = state.equityHistory;
+      if (pts.length > 1) {
+        var lo = Math.min.apply(null, pts.map(function (p) { return p.eq; }));
+        var hi = Math.max.apply(null, pts.map(function (p) { return p.eq; }));
+        var rng = (hi - lo) || 1; lo -= rng * 0.1; hi += rng * 0.1; rng = hi - lo;
+        var pad = 6;
+        function px(i) { return pad + i / (pts.length - 1) * (cw - pad * 2); }
+        function py(v) { return pad + (1 - (v - lo) / rng) * (ch - pad * 2); }
+        ctx.strokeStyle = "#1b2030"; ctx.beginPath(); ctx.moveTo(0, ch - pad); ctx.lineTo(cw, ch - pad); ctx.stroke();
+        ctx.strokeStyle = ret >= 0 ? "#2ebd85" : "#f6465d"; ctx.lineWidth = 2; ctx.beginPath();
+        pts.forEach(function (p, i) { var x = px(i), y = py(p.eq); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke();
+        ctx.fillStyle = "#5c6373"; ctx.font = "10px monospace";
+        ctx.fillText(fmtUSD(hi), 4, 12); ctx.fillText(fmtUSD(lo), 4, ch - 4);
+      } else {
+        ctx.fillStyle = "#5c6373"; ctx.font = "11px monospace"; ctx.fillText("Trade to build your equity curve", 8, ch / 2);
+      }
+    }
   }
 
   // ----------------------------- Chart (multi-tile) ------------------------
@@ -813,7 +924,7 @@
   }
   function addChart(sym, tf, active) {
     if (charts.length >= 4) return null;
-    var tile = { id: ++chartSeq, symbol: sym || currentSymbol, tf: tf || currentTimeframe, showMA: true, showBB: false, showRSI: false, showVOL: false, showFVG: false, showVWAP: false, canvas: null, ctx: null, el: null };
+    var tile = { id: ++chartSeq, symbol: sym || currentSymbol, tf: tf || currentTimeframe, showMA: true, showBB: false, showRSI: false, showVOL: false, showFVG: false, showVWAP: false, canvas: null, ctx: null, el: null, view: { start: null, end: null, pmin: null, pmax: null } };
     charts.push(tile);
     renderChartsGrid();
     buildTileEl(tile);
@@ -913,6 +1024,7 @@
     tile.el = el;
     tile.canvas = el.querySelector(".tile-canvas");
     tile.ctx = tile.canvas.getContext("2d");
+    bindTileInteraction(tile);
     el.addEventListener("click", function () { selectTile(tile.id, true); });
     el.querySelector(".tile-symbol").addEventListener("change", function (e) {
       tile.symbol = e.target.value;
@@ -948,6 +1060,67 @@
     });
     var closeBtn = el.querySelector(".tile-close");
     if (closeBtn) closeBtn.addEventListener("click", function (ev) { ev.stopPropagation(); removeChart(tile.id); });
+  }
+  function viewBounds(tile, n) {
+    var vs = tile.view.start != null ? clamp(tile.view.start, 0, n) : 0;
+    var ve = tile.view.end != null ? clamp(tile.view.end, 0, n) : n;
+    if (ve - vs < 5) { vs = 0; ve = n; }
+    return [vs, ve];
+  }
+  function midHalf(tile, bars) {
+    var hi = -Infinity, lo = Infinity;
+    bars.forEach(function (b) { if (b.h > hi) hi = b.h; if (b.l < lo) lo = b.l; });
+    var mid = (tile.view.pmin != null && tile.view.pmax != null) ? (tile.view.pmin + tile.view.pmax) / 2 : (hi + lo) / 2;
+    var half = (tile.view.pmax != null) ? (tile.view.pmax - tile.view.pmin) / 2 : (hi - lo) / 2 * 1.1 || 1;
+    return [mid, half];
+  }
+  function bindTileInteraction(tile) {
+    var cv = tile.canvas; if (!cv) return;
+    var drag = null;
+    cv.style.cursor = "crosshair";
+    cv.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var bars = candlesFor(tile.symbol, tile.tf), n = bars.length; if (!n) return;
+      if (e.shiftKey) {
+        var mh = midHalf(tile, bars);
+        var factor = e.deltaY > 0 ? 1.12 : 0.89;
+        var half = mh[1] * factor;
+        tile.view.pmin = mh[0] - half; tile.view.pmax = mh[0] + half;
+        drawChart(); return;
+      }
+      var vb = viewBounds(tile, n), vs = vb[0], ve = vb[1];
+      var count = ve - vs;
+      var newCount = clamp(Math.round(count * (e.deltaY > 0 ? 1.2 : 0.83)), 10, n);
+      if (newCount >= n) { tile.view.start = null; tile.view.end = null; }
+      else { tile.view.start = clamp(n - newCount, 0, n); tile.view.end = n; }
+      drawChart();
+    }, { passive: false });
+    cv.addEventListener("pointerdown", function (e) {
+      drag = { x: e.clientX, y: e.clientY, vs: tile.view.start, ve: tile.view.end, pmin: tile.view.pmin, pmax: tile.view.pmax };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    cv.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var bars = candlesFor(tile.symbol, tile.tf), n = bars.length; if (!n) return;
+      var rect = cv.getBoundingClientRect();
+      var plotW = rect.width - 58;
+      if ((e.clientX - rect.left) > plotW) {
+        var mh = midHalf(tile, bars);
+        var half = mh[1] * Math.exp((e.clientY - drag.y) / 140);
+        tile.view.pmin = mh[0] - half; tile.view.pmax = mh[0] + half;
+      } else {
+        var vb = viewBounds(tile, n), vs = vb[0], ve = vb[1];
+        var count = ve - vs, cw = plotW / count;
+        var shift = Math.round((e.clientX - drag.x) / cw);
+        var ns = clamp(vs - shift, 0, n - count);
+        tile.view.start = ns; tile.view.end = ns + count;
+      }
+      drawChart();
+    });
+    var end = function () { drag = null; };
+    cv.addEventListener("pointerup", end);
+    cv.addEventListener("pointercancel", end);
+    cv.addEventListener("dblclick", function () { tile.view = { start: null, end: null, pmin: null, pmax: null }; drawChart(); });
   }
   function selectTile(id, syncTrade) {
     activeChart = id;
@@ -1066,6 +1239,13 @@
     });
     return out;
   }
+  function fmtTime(ms, tf) {
+    var d = new Date(ms);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    if (tf === "1d" || tf === "1w") return p(d.getDate()) + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+    var sameDay = new Date(Date.now()).toDateString() === d.toDateString();
+    return sameDay ? p(d.getHours()) + ":" + p(d.getMinutes()) : p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
   function drawTile(tile) {
     var canvas = tile.canvas, ctx = tile.ctx;
     if (!canvas || !ctx) return;
@@ -1077,15 +1257,23 @@
     var bars = candlesFor(tile.symbol, tile.tf);
     if (!bars.length) return;
     var dec = market[tile.symbol].meta.dec;
-    var padR = 58, padT = 10, padB = 12;
+    var n = bars.length;
+
+    var vs = tile.view.start != null ? clamp(tile.view.start, 0, n) : 0;
+    var ve = tile.view.end != null ? clamp(tile.view.end, 0, n) : n;
+    if (ve - vs < 5) { vs = 0; ve = n; }
+    var visN = ve - vs;
+
+    var padR = 58, padT = 10, padB = 14, gap = 8, timeH = 16;
     var rsiH = tile.showRSI ? Math.round(h * 0.20) : 0;
     var volH = tile.showVOL ? Math.round(h * 0.18) : 0;
-    var gap = 8;
     var plotW = w - padR;
-    var priceBot = h - padB - (volH ? volH + gap : 0) - (rsiH ? rsiH + gap : 0);
+    var bottom = timeH + (volH ? volH + gap : 0) + (rsiH ? rsiH + gap : 0);
+    var priceBot = h - padB - bottom;
     var plotH = priceBot - padT;
     var volTop = priceBot + gap, volBot = volTop + volH;
     var rsiTop = (volH ? volBot : priceBot) + gap, rsiBot = rsiTop + rsiH;
+    var timeTop = h - padB - timeH;
 
     var closes = bars.map(function (b) { return b.c; });
     var ma = tile.showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
@@ -1095,26 +1283,27 @@
     var fvgs = tile.showFVG ? computeFVG(bars) : null;
 
     var hi = -Infinity, lo = Infinity;
-    bars.forEach(function (b) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); });
-    function span(arr) { arr.forEach(function (v) { if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }); }
-    if (ma) { span(ma.sma); span(ma.ema); }
-    if (bb) { span(bb.upper); span(bb.lower); }
-    if (vwap) span(vwap);
+    for (var i = vs; i < ve; i++) { var b = bars[i]; if (b.h > hi) hi = b.h; if (b.l < lo) lo = b.l; }
+    function spanRange(arr, a, z) { for (var j = a; j < z; j++) { var v = arr[j]; if (v != null) { if (v > hi) hi = v; if (v < lo) lo = v; } } }
+    if (ma) { spanRange(ma.sma, vs, ve); spanRange(ma.ema, vs, ve); }
+    if (bb) { spanRange(bb.upper, vs, ve); spanRange(bb.lower, vs, ve); }
+    if (vwap) spanRange(vwap, vs, ve);
+    if (tile.view.pmin != null && tile.view.pmax != null) { lo = tile.view.pmin; hi = tile.view.pmax; }
     var range = hi - lo || 1; lo -= range * 0.05; hi += range * 0.05; range = hi - lo;
 
     function y(p) { return padT + (1 - (p - lo) / range) * plotH; }
-    function x(i) { return (i + 0.5) / bars.length * plotW; }
+    function x(iGlobal) { return (iGlobal - vs + 0.5) / visN * plotW; }
     function line(arr, color, width, dash) {
       ctx.strokeStyle = color; ctx.lineWidth = width;
       ctx.setLineDash(dash ? [4, 3] : []); ctx.beginPath();
       var started = false;
-      bars.forEach(function (b, i) { var v = arr[i]; if (v == null) return; var xx = x(i), yy = y(v); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
+      for (var i = vs; i < ve; i++) { var v = arr[i]; if (v == null) continue; var xx = x(i), yy = y(v); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); }
       ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // FVG zones (behind candles)
     if (fvgs) {
       fvgs.slice(-14).forEach(function (f) {
+        if (f.i1 < vs || f.i0 >= ve) return;
         var yTop = y(f.top), yBot = y(f.bot);
         ctx.fillStyle = f.bull ? "rgba(46,189,133,0.16)" : "rgba(246,70,93,0.16)";
         ctx.fillRect(x(f.i0), Math.min(yTop, yBot), x(f.i1) - x(f.i0), Math.abs(yBot - yTop));
@@ -1128,29 +1317,30 @@
       ctx.fillText(fmtPrice(p, dec), plotW + 4, yy + 3);
     }
 
-    var cw = Math.max(1.5, plotW / bars.length * 0.6);
-    bars.forEach(function (b, i) {
+    var cw = Math.max(1.5, plotW / visN * 0.6);
+    for (var i2 = vs; i2 < ve; i2++) {
+      var b = bars[i2];
       var up = b.c >= b.o, col = up ? "#2ebd85" : "#f6465d";
       ctx.strokeStyle = col; ctx.fillStyle = col;
-      var xx = x(i);
+      var xx = x(i2);
       ctx.beginPath(); ctx.moveTo(xx, y(b.h)); ctx.lineTo(xx, y(b.l)); ctx.stroke();
       var yo = y(b.o), yc = y(b.c);
       var top = Math.min(yo, yc), bh = Math.max(1, Math.abs(yc - yo));
       ctx.fillRect(xx - cw / 2, top, cw, bh);
-    });
+    }
 
     if (bb) {
       ctx.fillStyle = "rgba(59,130,246,0.07)";
       ctx.beginPath(); var started = false;
-      bars.forEach(function (b, i) { if (bb.upper[i] == null) return; var xx = x(i), yy = y(bb.upper[i]); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
-      for (var k = bars.length - 1; k >= 0; k--) { if (bb.lower[k] == null) continue; ctx.lineTo(x(k), y(bb.lower[k])); }
+      for (var i3 = vs; i3 < ve; i3++) { if (bb.upper[i3] == null) continue; var xx = x(i3), yy = y(bb.upper[i3]); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); }
+      for (var k = ve - 1; k >= vs; k--) { if (bb.lower[k] == null) continue; ctx.lineTo(x(k), y(bb.lower[k])); }
       ctx.closePath(); ctx.fill();
       line(bb.upper, "#3b82f6", 1); line(bb.mid, "#3b82f6", 1, true); line(bb.lower, "#3b82f6", 1);
     }
     if (ma) { line(ma.sma, "#f0b90b", 1.4); line(ma.ema, "#e879f9", 1.4); }
     if (vwap) line(vwap, "#22d3ee", 1.4);
 
-    var last = bars[bars.length - 1].c, ly = y(last);
+    var last = bars[ve - 1].c, ly = y(last);
     ctx.strokeStyle = "#f0b90b"; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke();
     ctx.setLineDash([]);
@@ -1158,18 +1348,16 @@
     ctx.fillStyle = "#1a1400"; ctx.font = "bold 10px monospace";
     ctx.fillText(fmtPrice(last, dec), plotW + 4, ly + 3);
 
-    // Volume pane
     if (tile.showVOL) {
-      var maxV = 0; bars.forEach(function (b) { if ((b.v || 0) > maxV) maxV = b.v; });
+      var maxV = 0; for (var i4 = vs; i4 < ve; i4++) { if ((bars[i4].v || 0) > maxV) maxV = bars[i4].v; }
       ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("VOL", 6, volTop + 11);
-      bars.forEach(function (b, i) {
-        var bh = maxV ? (b.v || 0) / maxV * volH : 0;
+      for (var i5 = vs; i5 < ve; i5++) {
+        var b = bars[i5]; var bh = maxV ? (b.v || 0) / maxV * volH : 0;
         ctx.fillStyle = b.c >= b.o ? "rgba(46,189,133,0.55)" : "rgba(246,70,93,0.55)";
-        ctx.fillRect(x(i) - cw / 2, volBot - bh, cw, bh);
-      });
+        ctx.fillRect(x(i5) - cw / 2, volBot - bh, cw, bh);
+      }
     }
 
-    // RSI sub-pane
     if (tile.showRSI && rsiArr) {
       ctx.fillStyle = "#0d0f15"; ctx.fillRect(0, rsiTop, plotW, rsiH);
       [30, 50, 70].forEach(function (lv) {
@@ -1180,10 +1368,19 @@
       });
       ctx.strokeStyle = "#f0b90b"; ctx.lineWidth = 1.4; ctx.beginPath();
       var started2 = false;
-      bars.forEach(function (b, i) { if (rsiArr[i] == null) return; var xx = x(i), yy = rsiBot - (rsiArr[i] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); });
+      for (var i6 = vs; i6 < ve; i6++) { if (rsiArr[i6] == null) continue; var xx = x(i6), yy = rsiBot - (rsiArr[i6] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); }
       ctx.stroke();
       ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("RSI(14)", 6, rsiTop + 12);
     }
+
+    ctx.fillStyle = "#6b7280"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    var ticks = 6;
+    for (var t = 0; t <= ticks; t++) {
+      var gi = Math.min(n - 1, Math.round(vs + (visN - 1) * t / ticks));
+      var xx = x(gi);
+      ctx.fillText(fmtTime(bars[gi].t, tile.tf), Math.max(16, Math.min(plotW - 16, xx)), timeTop + 11);
+    }
+    ctx.textAlign = "left";
   }
 
   // ----------------------------- Interaction -------------------------------
@@ -1232,11 +1429,13 @@
       try { localStorage.setItem("omantrade_proxy", url); } catch (e) {}
       if (url) {
         setLiveBadge(true, "LIVE · yfinance");
+        setUSStatus("yfinance: connecting…", "");
         startStockPoll();
         loadHistory(currentSymbol, currentTimeframe);
         toast("Stock proxy set — US stocks now fetch live data when reachable", "success");
       } else {
         setLiveBadge(false);
+        setUSStatus("yfinance: not set (⚙ to enable)", "");
         toast("Stock proxy cleared — US stocks use simulation", "success");
       }
     });

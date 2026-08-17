@@ -53,12 +53,15 @@
     ctx.clearRect(0, 0, w, h);
     var bars = d.candles, dec = d.dec || 2;
     var showMA = d.showMA, showBB = d.showBB, showRSI = d.showRSI, showVOL = d.showVOL, showFVG = d.showFVG, showVWAP = d.showVWAP;
-    var padR = 70, padT = 8, padB = 10, gap = 8;
+    var padR = 70, padT = 8, padB = 14, gap = 8, timeH = 16;
     var rsiH = showRSI ? Math.round(h * 0.20) : 0, volH = showVOL ? Math.round(h * 0.18) : 0;
     var plotW = w - padR;
-    var priceBot = h - padB - (volH ? volH + gap : 0) - (rsiH ? rsiH + gap : 0);
-    var plotH = priceBot - padT, volTop = priceBot + gap, volBot = volTop + volH;
+    var bottom = timeH + (volH ? volH + gap : 0) + (rsiH ? rsiH + gap : 0);
+    var priceBot = h - padB - bottom;
+    var plotH = priceBot - padT;
+    var volTop = priceBot + gap, volBot = volTop + volH;
     var rsiTop = (volH ? volBot : priceBot) + gap, rsiBot = rsiTop + rsiH;
+    var timeTop = h - padB - timeH;
     var closes = bars.map(function (b) { return b.c; });
     var ma = showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
     var bb = showBB ? bollinger(closes, 20, 2) : null;
@@ -114,6 +117,16 @@
       var maxV = 0; bars.forEach(function (b) { if ((b.v || 0) > maxV) maxV = b.v; });
       bars.forEach(function (b, i) { var bh = maxV ? (b.v || 0) / maxV * volH : 0; ctx.fillStyle = b.c >= b.o ? "rgba(46,189,133,0.55)" : "rgba(246,70,93,0.55)"; ctx.fillRect(x(i) - cw / 2, volBot - bh, cw, bh); });
     }
+    ctx.fillStyle = "#6b7280"; ctx.font = "12px monospace"; ctx.textAlign = "center";
+    var ticks = 6, n = bars.length;
+    for (var tt = 0; tt <= ticks; tt++) {
+      var gi = Math.min(n - 1, Math.round((n - 1) * tt / ticks));
+      var xx = x(gi);
+      var dd = new Date(bars[gi].t);
+      var lbl = dd.getHours() + ":" + (dd.getMinutes() < 10 ? "0" : "") + dd.getMinutes();
+      ctx.fillText(lbl, Math.max(20, Math.min(plotW - 20, xx)), timeTop + 12);
+    }
+    ctx.textAlign = "left";
   }
 
   function render(payload) {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
   <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 </head>
 <body>
@@ -112,7 +112,9 @@
         <div class="panel-head">
           <input id="market-search" type="search" placeholder="Search market…" aria-label="Search market" />
         </div>
-        <div class="market-note">Crypto: live Hyperliquid (all perps) · US: yfinance proxy (⚙ to set) · MSX: simulated</div>
+        <div class="market-note">
+          Crypto: <b>live Hyperliquid</b> (all perps) · US: <span id="us-status">yfinance proxy (⚙ to set)</span> · MSX: simulated
+        </div>
         <div class="market-add">
           <input id="add-stock" type="text" placeholder="Add US ticker (e.g. COIN) +" aria-label="Add US stock ticker" />
           <button id="add-stock-btn" title="Track this ticker">+</button>
@@ -138,36 +140,41 @@
               <button data-layout="4" title="4 charts">4</button>
             </div>
             <button id="cast-tv" class="ct-btn cast" title="Open TV / cast view">📺 Cast to TV</button>
+            <span class="chart-hint">Scroll = zoom time · Shift+Scroll / drag axis = zoom price · drag = pan · double-click = reset</span>
           </div>
           <div class="charts-grid" id="charts-grid"></div>
         </div>
-        <div class="bottom-tabs">
-          <div class="tab-head">
-            <button class="tab active" data-tab="positions">Positions</button>
-            <button class="tab" data-tab="orders">Open Orders</button>
-            <button class="tab" data-tab="history">History</button>
+          <div class="bottom-tabs">
+            <div class="tab-head">
+              <button class="tab active" data-tab="positions">Positions</button>
+              <button class="tab" data-tab="orders">Open Orders</button>
+              <button class="tab" data-tab="history">History</button>
+              <button class="tab" data-tab="performance">Performance</button>
+            </div>
+            <div class="tab-body">
+              <div class="tab-pane active" id="pane-positions">
+                <table class="data-table">
+                  <thead><tr><th>Market</th><th>Size</th><th>Entry</th><th>Mark</th><th>Liq.</th><th>uPnL</th><th></th></tr></thead>
+                  <tbody id="positions-body"><tr class="empty"><td colspan="7">No open positions</td></tr></tbody>
+                </table>
+              </div>
+              <div class="tab-pane" id="pane-orders">
+                <table class="data-table">
+                  <thead><tr><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th><th></th></tr></thead>
+                  <tbody id="orders-body"><tr class="empty"><td colspan="6">No open orders</td></tr></tbody>
+                </table>
+              </div>
+              <div class="tab-pane" id="pane-history">
+                <table class="data-table">
+                  <thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th></tr></thead>
+                  <tbody id="history-body"><tr class="empty"><td colspan="6">No trades yet</td></tr></tbody>
+                </table>
+              </div>
+              <div class="tab-pane" id="pane-performance">
+                <div id="perf-body"></div>
+              </div>
+            </div>
           </div>
-          <div class="tab-body">
-            <div class="tab-pane active" id="pane-positions">
-              <table class="data-table">
-                <thead><tr><th>Market</th><th>Size</th><th>Entry</th><th>Mark</th><th>Liq.</th><th>uPnL</th><th></th></tr></thead>
-                <tbody id="positions-body"><tr class="empty"><td colspan="7">No open positions</td></tr></tbody>
-              </table>
-            </div>
-            <div class="tab-pane" id="pane-orders">
-              <table class="data-table">
-                <thead><tr><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th><th></th></tr></thead>
-                <tbody id="orders-body"><tr class="empty"><td colspan="6">No open orders</td></tr></tbody>
-              </table>
-            </div>
-            <div class="tab-pane" id="pane-history">
-              <table class="data-table">
-                <thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th></tr></thead>
-                <tbody id="history-body"><tr class="empty"><td colspan="6">No trades yet</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- Right: order book + trade -->
@@ -232,6 +239,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

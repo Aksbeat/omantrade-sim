@@ -288,6 +288,16 @@ a { color: var(--accent-2); }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
 
+.perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+.perf-stat { background: #0d0f15; border: 1px solid rgba(35,40,56,0.6); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.perf-label { font-size: 10.5px; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.4px; }
+.perf-val { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+.perf-chart-wrap { padding: 4px 10px 12px; }
+.perf-chart-title { font-size: 11px; color: var(--muted-2); margin: 6px 0 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+#perf-spark { width: 100%; height: 130px; display: block; background: #0a0c11; border-radius: 8px; border: 1px solid rgba(35,40,56,0.6); }
+.chart-hint { font-size: 10.5px; color: var(--muted-2); padding: 0 8px 6px; text-align: right; }
+
+
 .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .data-table th { text-align: right; color: var(--muted-2); font-weight: 600; font-size: 11px; padding: 8px 12px; position: sticky; top: 0; background: var(--panel); }
 .data-table th:first-child, .data-table td:first-child { text-align: left; }
