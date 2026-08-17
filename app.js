@@ -15,7 +15,7 @@
   // NOTE: MSX has no free in-browser API, so these are simulated listings
   // (real company names, illustrative base prices) consistent with the sim.
   // Build version — bump with each deploy and mirror in index.html asset query.
-  var VERSION = "v8";
+  var VERSION = "v9";
 
   // Crypto perps are loaded LIVE from Hyperliquid's full universe at runtime
   // (see loadUniverse). A few popular fallbacks are kept so the app still works
@@ -351,7 +351,7 @@
           mm.dayHigh = Math.max(mm.dayHigh || p, p); mm.dayLow = Math.min(mm.dayLow || p, p);
           mm.src = "proxy"; mm.live = true; renderTicker(); renderOrderBook();
         }).catch(function () {});
-    }, 4000);
+    }, 2500);
   }
   function setLiveBadge(on, label) {
     var b = document.getElementById("live-badge");
