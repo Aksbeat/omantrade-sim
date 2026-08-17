@@ -156,6 +156,26 @@ a { color: var(--accent-2); }
 }
 .live-badge[hidden] { display: none; }
 @keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+.app-version {
+  font-size: 10px; font-weight: 600; color: var(--muted-2);
+  border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; font-family: var(--mono);
+}
+.settings-btn {
+  font-size: 14px; line-height: 1; color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; width: 28px; height: 26px; cursor: pointer;
+}
+.settings-btn:hover { color: var(--text); border-color: #2b3340; }
+
+.market-add { display: flex; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.market-add input {
+  flex: 1; font-size: 12px; color: var(--text); background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+.market-add button {
+  font-size: 16px; line-height: 1; width: 30px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.market-add button:hover { background: #20262f; }
 .topbar-right { display: flex; align-items: center; gap: 18px; }
 .acct-stat { display: flex; flex-direction: column; align-items: flex-end; }
 .acct-label { font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .5px; }

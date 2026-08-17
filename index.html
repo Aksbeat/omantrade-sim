@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
   <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 </head>
 <body>
@@ -82,6 +82,8 @@
         </div>
         <span class="env-badge">SIMULATION</span>
         <span id="live-badge" class="live-badge" hidden>LIVE</span>
+        <span id="app-version" class="app-version" title="Build version">v?</span>
+        <button id="settings-btn" class="settings-btn" title="Settings (set live stock proxy)">⚙</button>
       </div>
       <div class="topbar-right">
         <div class="acct-stat">
@@ -110,7 +112,11 @@
         <div class="panel-head">
           <input id="market-search" type="search" placeholder="Search market…" aria-label="Search market" />
         </div>
-        <div class="market-note">Crypto: live Hyperliquid · US: yfinance proxy (set ?proxy=) · MSX: simulated</div>
+        <div class="market-note">Crypto: live Hyperliquid (all perps) · US: yfinance proxy (⚙ to set) · MSX: simulated</div>
+        <div class="market-add">
+          <input id="add-stock" type="text" placeholder="Add US ticker (e.g. COIN) +" aria-label="Add US stock ticker" />
+          <button id="add-stock-btn" title="Track this ticker">+</button>
+        </div>
         <div class="market-list" id="market-list" role="listbox" aria-label="Available markets"></div>
       </section>
 
@@ -226,6 +232,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

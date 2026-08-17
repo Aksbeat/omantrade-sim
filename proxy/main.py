@@ -24,6 +24,7 @@ def _candles(ticker, interval, period):
             "h": float(row["High"]),
             "l": float(row["Low"]),
             "c": float(row["Close"]),
+            "v": float(row["Volume"]) if "Volume" in row and row["Volume"] == row["Volume"] else 0.0,
         })
     return out
 

@@ -14,28 +14,35 @@
   // Simulated markets. Crypto perps use USD; MSX stocks use OMR.
   // NOTE: MSX has no free in-browser API, so these are simulated listings
   // (real company names, illustrative base prices) consistent with the sim.
+  // Build version — bump with each deploy and mirror in index.html asset query.
+  var VERSION = "v7";
+
+  // Crypto perps are loaded LIVE from Hyperliquid's full universe at runtime
+  // (see loadUniverse). A few popular fallbacks are kept so the app still works
+  // if the network is unavailable. US stocks + MSX are listed below.
   var ASSETS = [
     { symbol: "BTC-PERP",  name: "Bitcoin",   price: 64800,  vol: 0.0016, dec: 1, cat: "crypto", cur: "USD" },
     { symbol: "ETH-PERP",  name: "Ethereum",  price: 3380,   vol: 0.0020, dec: 2, cat: "crypto", cur: "USD" },
     { symbol: "SOL-PERP",  name: "Solana",    price: 148.2,  vol: 0.0030, dec: 2, cat: "crypto", cur: "USD" },
-    { symbol: "BNB-PERP",  name: "BNB",       price: 585,    vol: 0.0022, dec: 2, cat: "crypto", cur: "USD" },
-    { symbol: "XRP-PERP",  name: "XRP",       price: 0.582,  vol: 0.0030, dec: 4, cat: "crypto", cur: "USD" },
-    { symbol: "ADA-PERP",  name: "Cardano",   price: 0.461,  vol: 0.0032, dec: 4, cat: "crypto", cur: "USD" },
-    { symbol: "DOGE-PERP", name: "Dogecoin",  price: 0.1234, vol: 0.0040, dec: 5, cat: "crypto", cur: "USD" },
-    { symbol: "AVAX-PERP", name: "Avalanche", price: 36.1,   vol: 0.0030, dec: 2, cat: "crypto", cur: "USD" },
-    { symbol: "LINK-PERP", name: "Chainlink", price: 14.25,  vol: 0.0032, dec: 3, cat: "crypto", cur: "USD" },
-    { symbol: "MATIC-PERP",name: "Polygon",   price: 0.724,  vol: 0.0034, dec: 4, cat: "crypto", cur: "USD" },
     // ---- US Stocks (via yfinance proxy; falls back to sim if proxy unset) ----
-    { symbol: "AAPL",  name: "Apple",        price: 225.0,  vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "MSFT",  name: "Microsoft",    price: 415.0,  vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "NVDA",  name: "NVIDIA",       price: 120.0,  vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "TSLA",  name: "Tesla",        price: 250.0,  vol: 0.0035, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "AMZN",  name: "Amazon",       price: 185.0,  vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "GOOGL", name: "Alphabet",     price: 175.0,  vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "META",  name: "Meta",         price: 560.0,  vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "AMD",   name: "AMD",          price: 160.0,  vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "NFLX",  name: "Netflix",      price: 700.0,  vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
-    { symbol: "INTC",  name: "Intel",        price: 22.0,   vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "AAPL",  name: "Apple",       price: 225.0, vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "MSFT",  name: "Microsoft",   price: 415.0, vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "NVDA",  name: "NVIDIA",      price: 120.0, vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "TSLA",  name: "Tesla",       price: 250.0, vol: 0.0035, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "AMZN",  name: "Amazon",      price: 185.0, vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "GOOGL", name: "Alphabet",    price: 175.0, vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "META",  name: "Meta",        price: 560.0, vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "AMD",   name: "AMD",         price: 160.0, vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "NFLX",  name: "Netflix",     price: 700.0, vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "INTC",  name: "Intel",       price: 22.0,  vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "COIN",  name: "Coinbase",    price: 230.0, vol: 0.0040, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "PLTR",  name: "Palantir",    price: 35.0,  vol: 0.0040, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "MSTR",  name: "MicroStrategy", price: 1500.0, vol: 0.0040, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "BABA",  name: "Alibaba",     price: 80.0,  vol: 0.0035, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "DIS",   name: "Disney",      price: 95.0,  vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "JPM",   name: "JPMorgan",    price: 210.0, vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "V",     name: "Visa",        price: 280.0, vol: 0.0018, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "KO",    name: "Coca-Cola",   price: 62.0,  vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
     // ---- Muscat Securities Exchange (MSX) — simulated ----
     { symbol: "BKMB",  name: "Bank Muscat",          price: 0.620, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
     { symbol: "OMTEL", name: "Omantel",              price: 0.850, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
@@ -74,6 +81,13 @@
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function rand(min, max) { return min + Math.random() * (max - min); }
+  function priceDecimals(p) {
+    if (p == null || isNaN(p) || p <= 0) return 2;
+    if (p >= 1000) return 1;
+    if (p >= 1) return 2;
+    if (p >= 0.01) return 4;
+    return 5;
+  }
 
   function toast(msg, kind) {
     var t = $("toast");
@@ -114,22 +128,41 @@
   function readProxyFromQuery() {
     try { return new URLSearchParams(location.search).get("proxy") || ""; } catch (e) { return ""; }
   }
+  function readProxy() {
+    try {
+      var ls = localStorage.getItem("omantrade_proxy") || "";
+      return readProxyFromQuery() || ls;
+    } catch (e) { return readProxyFromQuery(); }
+  }
   var CONFIG = {
     LIVE_CRYPTO: true,
-    STOCK_PROXY_URL: readProxyFromQuery() || "", // e.g. "https://your-proxy.onrender.com"
+    STOCK_PROXY_URL: readProxy() || "", // e.g. "https://your-proxy.onrender.com" (set via ⚙ or ?proxy=)
     HL_WS: "wss://api.hyperliquid.xyz/ws",
     HL_REST: "https://api.hyperliquid.xyz/info"
   };
   function coinOf(sym) { return sym.replace(/-PERP$/, ""); }
   function canFetch() { return typeof fetch !== "undefined"; }
+  function updateLastCandle(m) {
+    if (!m.liveCandles) return;
+    Object.keys(m.liveCandles).forEach(function (tf) {
+      var bars = m.liveCandles[tf]; if (!bars || !bars.length) return;
+      var last = bars[bars.length - 1], p = m.price;
+      last.c = p; if (p > last.h) last.h = p; if (p < last.l) last.l = p;
+    });
+  }
 
   function hlParseCandles(rows) {
-    // Hyperliquid candleSnapshot rows: [time, o, h, l, c, v, ...]
+    // Hyperliquid candleSnapshot: array of objects {t,o,h,l,c,v} (or legacy arrays)
     var bars = [];
     (rows || []).forEach(function (r) {
-      var t = +r[0], o = +r[1], h = +r[2], l = +r[3], c = +r[4];
+      var t, o, h, l, c, v;
+      if (r && typeof r === "object" && !Array.isArray(r)) {
+        t = +r.t; o = +r.o; h = +r.h; l = +r.l; c = +r.c; v = +(r.v || 0);
+      } else {
+        t = +r[0]; o = +r[1]; h = +r[2]; l = +r[3]; c = +r[4]; v = (r[5] != null ? +r[5] : 0);
+      }
       if ([t, o, h, l, c].some(function (x) { return isNaN(x); })) return;
-      bars.push({ t: t, o: o, h: h, l: l, c: c });
+      bars.push({ t: t, o: o, h: h, l: l, c: c, v: isNaN(v) ? 0 : v });
     });
     return bars;
   }
@@ -151,7 +184,7 @@
     return fetch(url).then(function (r) { if (!r.ok) throw new Error("proxy " + r.status); return r.json(); })
       .then(function (d) {
         var candles = (d.candles || []).map(function (c) {
-          return { t: c.t ? +c.t : (c.time ? +c.time : 0), o: +c.o, h: +c.h, l: +c.l, c: +c.c };
+          return { t: c.t ? +c.t : (c.time ? +c.time : 0), o: +c.o, h: +c.h, l: +c.l, c: +c.c, v: c.v != null ? +c.v : 0 };
         });
         if (!candles.length) throw new Error("empty");
         return { price: d.price != null ? +d.price : candles[candles.length - 1].c, candles: candles };
@@ -161,7 +194,7 @@
     var m = market[sym]; if (!m) return;
     m.liveCandles = m.liveCandles || {};
     m.liveCandles[tf] = bars;
-    if (price != null) m.price = price;
+    if (price != null) { m.price = price; updateLastCandle(m); }
     m.live = true;
     if (sym === currentSymbol) { renderTicker(); drawChart(); }
   }
@@ -181,11 +214,60 @@
     }
   }
 
+  // ---- Hyperliquid universe (load ALL perps live) ----
+  var _universeLoaded = false;
+  function loadUniverse() {
+    if (_universeLoaded || !canFetch()) return Promise.resolve();
+    return fetch(CONFIG.HL_REST, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "metaAndAssetCtxs" })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      var meta = d[0] || {}, ctxs = d[1] || [];
+      (meta.universe || []).forEach(function (u, i) {
+        if (u.isDelisted) return;
+        var coin = u.name; if (!coin) return;
+        var sym = coin + "-PERP";
+        var ctx = ctxs[i] || {};
+        var mid = parseFloat(ctx.midPx || ctx.markPx || ctx.oraclePx);
+        var prev = parseFloat(ctx.prevDayPx);
+        var vol24 = parseFloat(ctx.dayNtlVlm || ctx.dayBaseVlm);
+        var price = isNaN(mid) ? null : mid;
+        var m = market[sym];
+        if (m) {
+          if (price != null) {
+            m.price = price; m.open24h = isNaN(prev) ? price : prev;
+            m.dayHigh = Math.max(price, m.dayHigh || price); m.dayLow = Math.min(price, m.dayLow || price);
+          }
+          if (!isNaN(vol24)) m.volume24h = vol24;
+          m.live = true; m.src = "hl";
+          if (ctx.funding != null) m.funding = parseFloat(ctx.funding);
+        } else {
+          var dec = priceDecimals(price != null ? price : 1);
+          var def = { symbol: sym, name: coin, price: price != null ? price : 1, vol: 0.003, dec: dec, cat: "crypto", cur: "USD" };
+          ASSETS.push(def);
+          market[sym] = {
+            meta: def, price: price != null ? price : 1, open24h: isNaN(prev) ? (price != null ? price : 1) : prev,
+            dayHigh: price != null ? price : 1, dayLow: price != null ? price : 1,
+            funding: parseFloat(ctx.funding || 0), drift: 0, ticks: [], volume24h: isNaN(vol24) ? 0 : vol24,
+            live: true, src: "hl"
+          };
+        }
+      });
+      _universeLoaded = true;
+      renderMarkets(); refreshAllTileOptions(); drawChart();
+    }).catch(function () { /* keep fallback crypto */ });
+  }
+
   // ---- Hyperliquid WebSocket (live mids + order book) ----
-  var _ws = null, _wsRetry = null, _stockPoll = null;
+  var _ws = null, _wsRetry = null, _stockPoll = null, _drawScheduled = false;
+  function scheduleDraw() {
+    if (_drawScheduled) return;
+    _drawScheduled = true;
+    setTimeout(function () { _drawScheduled = false; drawChart(); }, 250);
+  }
   function startLive() {
-    if (!CONFIG.LIVE_CRYPTO || typeof WebSocket === "undefined") return;
-    connectHL();
+    if (typeof WebSocket === "undefined") return;
+    loadUniverse().then(connectHL);
     startStockPoll();
   }
   function connectHL() {
@@ -210,11 +292,13 @@
   }
   function applyMids(data) {
     if (!data) return;
+    var updated = false;
     ASSETS.forEach(function (a) {
       if (a.cat !== "crypto") return;
       var c = coinOf(a.symbol);
-      if (data[c] != null) { var p = parseFloat(data[c]); if (!isNaN(p)) setLivePrice(a.symbol, p); }
+      if (data[c] != null) { var p = parseFloat(data[c]); if (!isNaN(p)) { setLivePrice(a.symbol, p); updated = true; } }
     });
+    if (updated) scheduleDraw();
   }
   function setLivePrice(sym, p) {
     var m = market[sym]; if (!m) return;
@@ -225,6 +309,7 @@
     if (p > m.dayHigh) m.dayHigh = p;
     if (p < m.dayLow) m.dayLow = p;
     m.src = "hl"; m.live = true;
+    updateLastCandle(m);
     if (sym === currentSymbol) { renderTicker(); renderOrderBook(); }
   }
   function applyBook(data) {
@@ -520,11 +605,14 @@
     var chgEl = $("ticker-change");
     chgEl.textContent = fmtPct(chg);
     chgEl.className = "ticker-change " + (chg >= 0 ? "green" : "red");
+    var volTxt = m.volume24h != null && m.volume24h > 0
+      ? (m.volume24h >= 1e9 ? fmtNum(m.volume24h / 1e9, 2) + "B" : m.volume24h >= 1e6 ? fmtNum(m.volume24h / 1e6, 2) + "M" : fmtNum(m.volume24h / 1e3, 1) + "K")
+      : (m.src === "hl" || m.src === "proxy" ? "—" : "SIM");
     $("ticker-stats").innerHTML =
       "<span>24h Chg <b>" + fmtPct(chg) + "</b></span>" +
       "<span>24h High <b>" + fmtPrice(m.dayHigh, a.dec) + "</b></span>" +
       "<span>24h Low <b>" + fmtPrice(m.dayLow, a.dec) + "</b></span>" +
-      "<span>Vol <b>" + fmtNum(m.price * 1e6 / 1e3, 1) + "K</b></span>" +
+      "<span>Vol(24h) <b>" + volTxt + "</b></span>" +
       "<span>Funding <b class='" + (m.funding >= 0 ? "green" : "red") + "'>" + fmtPct(m.funding * 100) + "</b></span>";
   }
 
@@ -725,7 +813,7 @@
   }
   function addChart(sym, tf, active) {
     if (charts.length >= 4) return null;
-    var tile = { id: ++chartSeq, symbol: sym || currentSymbol, tf: tf || currentTimeframe, showMA: true, showBB: false, showRSI: false, canvas: null, ctx: null, el: null };
+    var tile = { id: ++chartSeq, symbol: sym || currentSymbol, tf: tf || currentTimeframe, showMA: true, showBB: false, showRSI: false, showVOL: false, showFVG: false, showVWAP: false, canvas: null, ctx: null, el: null };
     charts.push(tile);
     renderChartsGrid();
     buildTileEl(tile);
@@ -766,6 +854,33 @@
     var grid = $("charts-grid"); if (!grid) return;
     grid.className = "charts-grid layout-" + charts.length;
   }
+  function refreshAllTileOptions() {
+    charts.forEach(function (t) {
+      if (!t.el) return;
+      var sel = t.el.querySelector(".tile-symbol"); if (!sel) return;
+      var cur = sel.value;
+      sel.innerHTML = ASSETS.map(function (a) {
+        return '<option value="' + a.symbol + '"' + (a.symbol === cur ? " selected" : "") + ">" + a.symbol + " · " + a.name + "</option>";
+      }).join("");
+    });
+  }
+  function addCustomStock(raw) {
+    var sym = (raw || "").trim().toUpperCase();
+    if (!sym) return;
+    if (market[sym]) { toast(sym + " is already tracked", "error"); return; }
+    var def = { symbol: sym, name: sym, price: 100, vol: 0.003, dec: 2, cat: "us", cur: "USD" };
+    ASSETS.push(def);
+    market[sym] = { meta: def, price: 100, open24h: 100, dayHigh: 100, dayLow: 100, funding: 0, drift: 0, ticks: [], live: false, src: "sim" };
+    renderMarkets($("market-search") ? $("market-search").value : "");
+    refreshAllTileOptions();
+    selectSymbol(sym);
+    if (CONFIG.STOCK_PROXY_URL) {
+      loadHistory(sym, currentTimeframe);
+      toast(sym + " added — fetching live yfinance data…", "success");
+    } else {
+      toast(sym + " added (simulated). Set a proxy in ⚙ for live data.", "success");
+    }
+  }
   function buildTileEl(tile) {
     var grid = $("charts-grid");
     var el = document.createElement("div");
@@ -787,6 +902,9 @@
           '<button data-ind="ma"' + (tile.showMA ? ' class="active"' : "") + ">MA</button>" +
           '<button data-ind="bb"' + (tile.showBB ? ' class="active"' : "") + ">BB</button>" +
           '<button data-ind="rsi"' + (tile.showRSI ? ' class="active"' : "") + ">RSI</button>" +
+          '<button data-ind="vol"' + (tile.showVOL ? ' class="active"' : "") + ">VOL</button>" +
+          '<button data-ind="fvg"' + (tile.showFVG ? ' class="active"' : "") + ">FVG</button>" +
+          '<button data-ind="vwap"' + (tile.showVWAP ? ' class="active"' : "") + ">VWAP</button>" +
         "</div>" +
         (charts.length > 1 ? '<button class="tile-close" title="Close chart">×</button>' : "") +
       "</div>" +
@@ -821,7 +939,10 @@
         if (b.dataset.ind === "ma") tile.showMA = !tile.showMA;
         if (b.dataset.ind === "bb") tile.showBB = !tile.showBB;
         if (b.dataset.ind === "rsi") tile.showRSI = !tile.showRSI;
-        b.classList.toggle("active", b.dataset.ind === "ma" ? tile.showMA : b.dataset.ind === "bb" ? tile.showBB : tile.showRSI);
+        if (b.dataset.ind === "vol") tile.showVOL = !tile.showVOL;
+        if (b.dataset.ind === "fvg") tile.showFVG = !tile.showFVG;
+        if (b.dataset.ind === "vwap") tile.showVWAP = !tile.showVWAP;
+        b.classList.toggle("active", b.dataset.ind === "ma" ? tile.showMA : b.dataset.ind === "bb" ? tile.showBB : b.dataset.ind === "rsi" ? tile.showRSI : b.dataset.ind === "vol" ? tile.showVOL : b.dataset.ind === "fvg" ? tile.showFVG : tile.showVWAP);
         drawChart();
       });
     });
@@ -854,7 +975,7 @@
       var payload = { type: "tiles", tiles: charts.map(function (t) {
         var m = market[t.symbol];
         var bars = (m.liveCandles && m.liveCandles[t.tf]) || candlesFor(t.symbol, t.tf);
-        return { symbol: t.symbol, name: (m.meta && m.meta.name) || t.symbol, tf: t.tf, showMA: t.showMA, showBB: t.showBB, showRSI: t.showRSI, dec: (m.meta && m.meta.dec) || 2, price: m.price, candles: bars };
+        return { symbol: t.symbol, name: (m.meta && m.meta.name) || t.symbol, tf: t.tf, showMA: t.showMA, showBB: t.showBB, showRSI: t.showRSI, showVOL: t.showVOL, showFVG: t.showFVG, showVWAP: t.showVWAP, dec: (m.meta && m.meta.dec) || 2, price: m.price, candles: bars };
       }) };
       castChannel.postMessage(payload);
     } catch (e) {}
@@ -926,6 +1047,25 @@
     charts.forEach(function (t) { drawTile(t); });
     broadcastCast();
   }
+  function computeFVG(bars) {
+    // 3-candle Fair Value Gap detection. Returns [{x0,x1,top,bot,bull}]
+    var out = [];
+    for (var i = 0; i + 2 < bars.length; i++) {
+      var a = bars[i], c = bars[i + 2];
+      if (c.low > a.high) out.push({ i0: i, i1: i + 2, top: c.low, bot: a.high, bull: true });
+      else if (c.high < a.low) out.push({ i0: i, i1: i + 2, top: a.low, bot: c.high, bull: false });
+    }
+    return out;
+  }
+  function computeVWAP(bars) {
+    var cumPV = 0, cumV = 0, out = [];
+    bars.forEach(function (b) {
+      var tp = (b.h + b.l + b.c) / 3, v = b.v || 0;
+      cumPV += tp * v; cumV += v;
+      out.push(cumV > 0 ? cumPV / cumV : b.c);
+    });
+    return out;
+  }
   function drawTile(tile) {
     var canvas = tile.canvas, ctx = tile.ctx;
     if (!canvas || !ctx) return;
@@ -937,21 +1077,29 @@
     var bars = candlesFor(tile.symbol, tile.tf);
     if (!bars.length) return;
     var dec = market[tile.symbol].meta.dec;
-    var padR = 58, padT = 10, padB = 14;
-    var rsiH = tile.showRSI ? Math.round(h * 0.22) : 0;
+    var padR = 58, padT = 10, padB = 12;
+    var rsiH = tile.showRSI ? Math.round(h * 0.20) : 0;
+    var volH = tile.showVOL ? Math.round(h * 0.18) : 0;
+    var gap = 8;
     var plotW = w - padR;
-    var plotH = h - padT - padB - (rsiH ? rsiH + 10 : 0);
+    var priceBot = h - padB - (volH ? volH + gap : 0) - (rsiH ? rsiH + gap : 0);
+    var plotH = priceBot - padT;
+    var volTop = priceBot + gap, volBot = volTop + volH;
+    var rsiTop = (volH ? volBot : priceBot) + gap, rsiBot = rsiTop + rsiH;
 
     var closes = bars.map(function (b) { return b.c; });
     var ma = tile.showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
     var bb = tile.showBB ? bollinger(closes, 20, 2) : null;
     var rsiArr = tile.showRSI ? rsi(closes, 14) : null;
+    var vwap = tile.showVWAP ? computeVWAP(bars) : null;
+    var fvgs = tile.showFVG ? computeFVG(bars) : null;
 
     var hi = -Infinity, lo = Infinity;
     bars.forEach(function (b) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); });
     function span(arr) { arr.forEach(function (v) { if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }); }
     if (ma) { span(ma.sma); span(ma.ema); }
     if (bb) { span(bb.upper); span(bb.lower); }
+    if (vwap) span(vwap);
     var range = hi - lo || 1; lo -= range * 0.05; hi += range * 0.05; range = hi - lo;
 
     function y(p) { return padT + (1 - (p - lo) / range) * plotH; }
@@ -962,6 +1110,15 @@
       var started = false;
       bars.forEach(function (b, i) { var v = arr[i]; if (v == null) return; var xx = x(i), yy = y(v); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
       ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // FVG zones (behind candles)
+    if (fvgs) {
+      fvgs.slice(-14).forEach(function (f) {
+        var yTop = y(f.top), yBot = y(f.bot);
+        ctx.fillStyle = f.bull ? "rgba(46,189,133,0.16)" : "rgba(246,70,93,0.16)";
+        ctx.fillRect(x(f.i0), Math.min(yTop, yBot), x(f.i1) - x(f.i0), Math.abs(yBot - yTop));
+      });
     }
 
     ctx.strokeStyle = "#1b2030"; ctx.fillStyle = "#5c6373"; ctx.font = "10px monospace"; ctx.lineWidth = 1;
@@ -991,6 +1148,7 @@
       line(bb.upper, "#3b82f6", 1); line(bb.mid, "#3b82f6", 1, true); line(bb.lower, "#3b82f6", 1);
     }
     if (ma) { line(ma.sma, "#f0b90b", 1.4); line(ma.ema, "#e879f9", 1.4); }
+    if (vwap) line(vwap, "#22d3ee", 1.4);
 
     var last = bars[bars.length - 1].c, ly = y(last);
     ctx.strokeStyle = "#f0b90b"; ctx.setLineDash([4, 4]);
@@ -1000,20 +1158,31 @@
     ctx.fillStyle = "#1a1400"; ctx.font = "bold 10px monospace";
     ctx.fillText(fmtPrice(last, dec), plotW + 4, ly + 3);
 
+    // Volume pane
+    if (tile.showVOL) {
+      var maxV = 0; bars.forEach(function (b) { if ((b.v || 0) > maxV) maxV = b.v; });
+      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("VOL", 6, volTop + 11);
+      bars.forEach(function (b, i) {
+        var bh = maxV ? (b.v || 0) / maxV * volH : 0;
+        ctx.fillStyle = b.c >= b.o ? "rgba(46,189,133,0.55)" : "rgba(246,70,93,0.55)";
+        ctx.fillRect(x(i) - cw / 2, volBot - bh, cw, bh);
+      });
+    }
+
+    // RSI sub-pane
     if (tile.showRSI && rsiArr) {
-      var rTop = padT + plotH + 10, rBot = rTop + rsiH;
-      ctx.fillStyle = "#0d0f15"; ctx.fillRect(0, rTop, plotW, rsiH);
+      ctx.fillStyle = "#0d0f15"; ctx.fillRect(0, rsiTop, plotW, rsiH);
       [30, 50, 70].forEach(function (lv) {
-        var yy = rBot - (lv / 100) * rsiH;
+        var yy = rsiBot - (lv / 100) * rsiH;
         ctx.strokeStyle = lv === 50 ? "#1b2030" : "rgba(246,70,93,0.25)";
         ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(plotW, yy); ctx.stroke();
         ctx.fillStyle = "#5c6373"; ctx.fillText(String(lv), plotW + 4, yy + 3);
       });
       ctx.strokeStyle = "#f0b90b"; ctx.lineWidth = 1.4; ctx.beginPath();
       var started2 = false;
-      bars.forEach(function (b, i) { if (rsiArr[i] == null) return; var xx = x(i), yy = rBot - (rsiArr[i] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); });
+      bars.forEach(function (b, i) { if (rsiArr[i] == null) return; var xx = x(i), yy = rsiBot - (rsiArr[i] / 100) * rsiH; if (!started2) { ctx.moveTo(xx, yy); started2 = true; } else ctx.lineTo(xx, yy); });
       ctx.stroke();
-      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("RSI(14)", 6, rTop + 12);
+      ctx.fillStyle = "#8b91a3"; ctx.font = "10px monospace"; ctx.fillText("RSI(14)", 6, rsiTop + 12);
     }
   }
 
@@ -1052,6 +1221,33 @@
     });
 
     $("year").textContent = new Date().getFullYear();
+
+    // settings: configure live US-stock (yfinance) proxy at runtime
+    $("settings-btn").addEventListener("click", function () {
+      var cur = CONFIG.STOCK_PROXY_URL || "";
+      var url = prompt("Enter your yfinance proxy URL (leave blank for simulation).\nDeploy the included proxy (see proxy/README.md) and paste its URL, e.g. https://your-app.onrender.com", cur);
+      if (url === null) return;
+      url = url.trim();
+      CONFIG.STOCK_PROXY_URL = url;
+      try { localStorage.setItem("omantrade_proxy", url); } catch (e) {}
+      if (url) {
+        setLiveBadge(true, "LIVE · yfinance");
+        startStockPoll();
+        loadHistory(currentSymbol, currentTimeframe);
+        toast("Stock proxy set — US stocks now fetch live data when reachable", "success");
+      } else {
+        setLiveBadge(false);
+        toast("Stock proxy cleared — US stocks use simulation", "success");
+      }
+    });
+
+    // add custom US ticker
+    function doAddStock() {
+      var inp = $("add-stock"); if (!inp) return;
+      addCustomStock(inp.value); inp.value = "";
+    }
+    $("add-stock-btn").addEventListener("click", doAddStock);
+    $("add-stock").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); doAddStock(); } });
 
     // markets search
     $("market-search").addEventListener("input", function () { renderMarkets(this.value); });
@@ -1130,11 +1326,14 @@
     ls.style.display = "none";   // belt-and-suspenders: never overlay the app
     $("app").hidden = false;
     $("app").style.display = "";
-    setupChart();
+    var ver = $("app-version"); if (ver) ver.textContent = VERSION;
+    loadUniverse().then(function () {
+      setupChart();
+      loadHistory(currentSymbol, currentTimeframe);
+      renderAll();
+      resizeCharts();
+    });
     startLive();
-    loadHistory(currentSymbol, currentTimeframe);
-    renderAll();
-    resizeCharts();
   }
 
   function logout() {

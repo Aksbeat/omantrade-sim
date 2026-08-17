@@ -51,9 +51,14 @@
     if (!w || !h) return;
     canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    var bars = d.candles, dec = d.dec || 2, showMA = d.showMA, showBB = d.showBB, showRSI = d.showRSI;
-    var padR = 70, padT = 8, padB = 10, rsiH = showRSI ? Math.round(h * 0.22) : 0;
-    var plotW = w - padR, plotH = h - padT - padB - (rsiH ? rsiH + 8 : 0);
+    var bars = d.candles, dec = d.dec || 2;
+    var showMA = d.showMA, showBB = d.showBB, showRSI = d.showRSI, showVOL = d.showVOL, showFVG = d.showFVG, showVWAP = d.showVWAP;
+    var padR = 70, padT = 8, padB = 10, gap = 8;
+    var rsiH = showRSI ? Math.round(h * 0.20) : 0, volH = showVOL ? Math.round(h * 0.18) : 0;
+    var plotW = w - padR;
+    var priceBot = h - padB - (volH ? volH + gap : 0) - (rsiH ? rsiH + gap : 0);
+    var plotH = priceBot - padT, volTop = priceBot + gap, volBot = volTop + volH;
+    var rsiTop = (volH ? volBot : priceBot) + gap, rsiBot = rsiTop + rsiH;
     var closes = bars.map(function (b) { return b.c; });
     var ma = showMA ? { sma: sma(closes, 7), ema: ema(closes, 12) } : null;
     var bb = showBB ? bollinger(closes, 20, 2) : null;
@@ -62,6 +67,7 @@
     function span(arr) { arr.forEach(function (v) { if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }); }
     if (ma) { span(ma.sma); span(ma.ema); }
     if (bb) { span(bb.upper); span(bb.lower); }
+    if (showVWAP) { var cumPV = 0, cumV = 0; bars.forEach(function (b) { var tp = (b.h + b.l + b.c) / 3; cumPV += tp * (b.v || 0); cumV += (b.v || 0); span([cumV > 0 ? cumPV / cumV : b.c]); }); }
     var range = hi - lo || 1; lo -= range * 0.05; hi += range * 0.05; range = hi - lo;
     function y(p) { return padT + (1 - (p - lo) / range) * plotH; }
     function x(i) { return (i + 0.5) / bars.length * plotW; }
@@ -70,6 +76,14 @@
       var started = false;
       bars.forEach(function (b, i) { var v = arr[i]; if (v == null) return; var xx = x(i), yy = y(v); if (!started) { ctx.moveTo(xx, yy); started = true; } else ctx.lineTo(xx, yy); });
       ctx.stroke(); ctx.setLineDash([]);
+    }
+    // FVG
+    if (showFVG) {
+      for (var fi = 0; fi + 2 < bars.length; fi++) {
+        var a = bars[fi], c = bars[fi + 2];
+        if (c.low > a.high) { ctx.fillStyle = "rgba(46,189,133,0.16)"; ctx.fillRect(x(fi), y(c.low), x(fi + 2) - x(fi), Math.abs(y(a.high) - y(c.low))); }
+        else if (c.high < a.low) { ctx.fillStyle = "rgba(246,70,93,0.16)"; ctx.fillRect(x(fi), y(a.low), x(fi + 2) - x(fi), Math.abs(y(c.high) - y(a.low))); }
+      }
     }
     ctx.strokeStyle = "#1b2030"; ctx.fillStyle = "#5c6373"; ctx.font = "13px monospace"; ctx.lineWidth = 1;
     for (var g = 0; g <= 5; g++) { var p = lo + range * g / 5, yy = y(p); ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(plotW, yy); ctx.stroke(); ctx.fillText(p.toFixed(dec), plotW + 6, yy + 4); }
@@ -89,14 +103,16 @@
       line(bb.upper, "#3b82f6", 1.5); line(bb.mid, "#3b82f6", 1.5, true); line(bb.lower, "#3b82f6", 1.5);
     }
     if (ma) { line(ma.sma, "#f0b90b", 2); line(ma.ema, "#e879f9", 2); }
+    if (showVWAP) { var c2 = 0, v2 = 0, vw = []; bars.forEach(function (b) { var tp = (b.h + b.l + b.c) / 3; c2 += tp * (b.v || 0); v2 += (b.v || 0); vw.push(v2 > 0 ? c2 / v2 : b.c); }); line(vw, "#22d3ee", 2); }
     var last = bars[bars.length - 1].c, ly = y(last);
     ctx.strokeStyle = "#f0b90b"; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = "#f0b90b"; ctx.fillRect(plotW, ly - 11, padR, 22);
     ctx.fillStyle = "#1a1400"; ctx.font = "bold 13px monospace"; ctx.fillText(last.toFixed(dec), plotW + 6, ly + 4);
     t.price.textContent = (d.price != null ? d.price.toFixed(dec) : last.toFixed(dec));
     t.price.style.color = "#f0b90b";
-    if (showRSI) {
-      // simple RSI drawn inline for TV
+    if (showVOL) {
+      var maxV = 0; bars.forEach(function (b) { if ((b.v || 0) > maxV) maxV = b.v; });
+      bars.forEach(function (b, i) { var bh = maxV ? (b.v || 0) / maxV * volH : 0; ctx.fillStyle = b.c >= b.o ? "rgba(46,189,133,0.55)" : "rgba(246,70,93,0.55)"; ctx.fillRect(x(i) - cw / 2, volBot - bh, cw, bh); });
     }
   }
 
