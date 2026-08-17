@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
+  <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+</head>
+<body>
+  <!-- ========================= LOGIN SCREEN ========================= -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-bg"></div>
+    <div class="login-card">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="40" height="40"><path d="M4 22 L12 12 L18 18 L28 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="6" r="2.6" fill="currentColor"/></svg>
+        </div>
+        <div class="brand-text">
+          <h1>Oman<span>Trade</span></h1>
+          <p class="brand-sub">عُمان للتداول — منصة المحاكاة التجارية</p>
+        </div>
+      </div>
+
+      <div class="welcome-note" role="note">
+        <h2>Welcome to the Trading Simulation Platform</h2>
+        <p>
+          A safe, risk-free environment for college students across the
+          <strong>Sultanate of Oman</strong> to learn and practice crypto-perpetual trading.
+        </p>
+        <ul class="partners">
+          <li><span class="dot"></span> Powered by <strong>Middle East College</strong> &amp; <strong>Ministry of Education</strong></li>
+          <li><span class="dot"></span> Funded by the <strong>MoHERI Research Grant</strong></li>
+          <li><span class="dot"></span> Every student starts with a virtual <strong>$10,000</strong> balance</li>
+        </ul>
+      </div>
+
+      <form id="login-form" class="login-form" novalidate>
+        <label for="login-name">Student / Trader Name</label>
+        <input id="login-name" name="name" type="text" autocomplete="name" placeholder="e.g. Aisha Al-Balushi" required />
+
+        <label for="login-email">University Email</label>
+        <input id="login-email" name="email" type="email" autocomplete="email" placeholder="e.g. aisha@mec.edu.om" required />
+
+        <label for="login-id">Student / National ID <span class="optional">(optional)</span></label>
+        <input id="login-id" name="studentId" type="text" placeholder="e.g. 20M12345" />
+
+        <button type="submit" class="btn-primary btn-block">
+          Enter Simulation &amp; Claim $10,000
+        </button>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+      </form>
+
+      <p class="disclaimer">
+        ⚠️ This is a <strong>simulation only</strong>. No real money, no real exchange connection.
+        All balances, prices and positions are virtual and for educational use.
+      </p>
+      <p class="login-foot">© <span id="year"></span> OmanTrade Simulation · Middle East College · Ministry of Education · MoHERI</p>
+    </div>
+  </div>
+
+  <!-- ========================= TRADING APP ========================= -->
+  <div id="app" class="app" hidden>
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand-mini">
+          <span class="brand-mark-mini">O</span> Oman<span>Trade</span>
+        </div>
+        <span class="env-badge">SIMULATION</span>
+      </div>
+      <div class="topbar-right">
+        <div class="acct-stat">
+          <span class="acct-label">Equity</span>
+          <span class="acct-val" id="hdr-equity">$10,000.00</span>
+        </div>
+        <div class="acct-stat">
+          <span class="acct-label">Available</span>
+          <span class="acct-val" id="hdr-available">$10,000.00</span>
+        </div>
+        <div class="acct-stat">
+          <span class="acct-label">PnL</span>
+          <span class="acct-val" id="hdr-pnl">$0.00</span>
+        </div>
+        <div class="acct-user">
+          <span id="hdr-user">Trader</span>
+          <button id="reset-btn" class="btn-ghost" title="Reset simulation account">Reset</button>
+          <button id="logout-btn" class="btn-ghost" title="Log out">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- Markets -->
+      <section class="panel markets" aria-label="Markets">
+        <div class="panel-head">
+          <input id="market-search" type="search" placeholder="Search market…" aria-label="Search market" />
+        </div>
+        <div class="market-list" id="market-list" role="listbox" aria-label="Available markets"></div>
+      </section>
+
+      <!-- Center: chart + positions -->
+      <section class="panel center">
+        <div class="ticker" id="ticker">
+          <div class="ticker-name" id="ticker-name">BTC-PERP</div>
+          <div class="ticker-price" id="ticker-price">$0.00</div>
+          <div class="ticker-change" id="ticker-change">0.00%</div>
+          <div class="ticker-stats" id="ticker-stats"></div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart" aria-label="Price chart"></canvas>
+          <div class="chart-interval" id="chart-interval">
+            <button data-tf="1m" class="active">1m</button>
+            <button data-tf="5m">5m</button>
+            <button data-tf="15m">15m</button>
+            <button data-tf="1h">1h</button>
+          </div>
+        </div>
+        <div class="bottom-tabs">
+          <div class="tab-head">
+            <button class="tab active" data-tab="positions">Positions</button>
+            <button class="tab" data-tab="orders">Open Orders</button>
+            <button class="tab" data-tab="history">History</button>
+          </div>
+          <div class="tab-body">
+            <div class="tab-pane active" id="pane-positions">
+              <table class="data-table">
+                <thead><tr><th>Market</th><th>Size</th><th>Entry</th><th>Mark</th><th>Liq.</th><th>uPnL</th><th></th></tr></thead>
+                <tbody id="positions-body"><tr class="empty"><td colspan="7">No open positions</td></tr></tbody>
+              </table>
+            </div>
+            <div class="tab-pane" id="pane-orders">
+              <table class="data-table">
+                <thead><tr><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th><th></th></tr></thead>
+                <tbody id="orders-body"><tr class="empty"><td colspan="6">No open orders</td></tr></tbody>
+              </table>
+            </div>
+            <div class="tab-pane" id="pane-history">
+              <table class="data-table">
+                <thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th></tr></thead>
+                <tbody id="history-body"><tr class="empty"><td colspan="6">No trades yet</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: order book + trade -->
+      <aside class="panel right">
+        <div class="orderbook" id="orderbook" aria-label="Order book">
+          <div class="ob-head"><span>Price</span><span>Size</span><span>Total</span></div>
+          <div class="ob-asks" id="ob-asks"></div>
+          <div class="ob-mid" id="ob-mid">$0.00</div>
+          <div class="ob-bids" id="ob-bids"></div>
+        </div>
+
+        <div class="trade">
+          <div class="side-toggle">
+            <button id="side-buy" class="active" data-side="buy">Buy / Long</button>
+            <button id="side-sell" data-side="sell">Sell / Short</button>
+          </div>
+          <div class="type-toggle">
+            <button id="type-market" class="active" data-type="market">Market</button>
+            <button id="type-limit" data-type="limit">Limit</button>
+          </div>
+          <label class="field">
+            <span>Limit Price (USD)</span>
+            <input id="trade-price" type="number" step="any" inputmode="decimal" disabled />
+          </label>
+          <label class="field">
+            <span>Size (USD notional)</span>
+            <input id="trade-size" type="number" step="any" min="0" inputmode="decimal" placeholder="0.00" />
+          </label>
+          <div class="lev">
+            <span>Leverage</span>
+            <div class="lev-options" id="lev-options">
+              <button data-lev="1">1×</button><button data-lev="2">2×</button>
+              <button class="active" data-lev="5">5×</button><button data-lev="10">10×</button>
+            </div>
+          </div>
+          <div class="quick-size" id="quick-size">
+            <button data-pct="25">25%</button><button data-pct="50">50%</button>
+            <button data-pct="75">75%</button><button data-pct="100">Max</button>
+          </div>
+          <button id="trade-submit" class="btn-primary btn-block">Buy / Long BTC-PERP</button>
+          <p class="trade-info" id="trade-info">Max order: $10,000.00</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
