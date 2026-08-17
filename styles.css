@@ -150,6 +150,12 @@ a { color: var(--accent-2); }
   background: rgba(240,185,11,0.12); border: 1px solid rgba(240,185,11,0.3);
   border-radius: 5px; padding: 2px 7px;
 }
+.live-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: .8px; color: #061b12;
+  background: #2ebd85; border-radius: 5px; padding: 2px 7px; animation: livepulse 1.6s infinite;
+}
+.live-badge[hidden] { display: none; }
+@keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 .topbar-right { display: flex; align-items: center; gap: 18px; }
 .acct-stat { display: flex; flex-direction: column; align-items: flex-end; }
 .acct-label { font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .5px; }

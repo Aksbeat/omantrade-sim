@@ -25,6 +25,17 @@
     { symbol: "AVAX-PERP", name: "Avalanche", price: 36.1,   vol: 0.0030, dec: 2, cat: "crypto", cur: "USD" },
     { symbol: "LINK-PERP", name: "Chainlink", price: 14.25,  vol: 0.0032, dec: 3, cat: "crypto", cur: "USD" },
     { symbol: "MATIC-PERP",name: "Polygon",   price: 0.724,  vol: 0.0034, dec: 4, cat: "crypto", cur: "USD" },
+    // ---- US Stocks (via yfinance proxy; falls back to sim if proxy unset) ----
+    { symbol: "AAPL",  name: "Apple",        price: 225.0,  vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "MSFT",  name: "Microsoft",    price: 415.0,  vol: 0.0015, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "NVDA",  name: "NVIDIA",       price: 120.0,  vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "TSLA",  name: "Tesla",        price: 250.0,  vol: 0.0035, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "AMZN",  name: "Amazon",       price: 185.0,  vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "GOOGL", name: "Alphabet",     price: 175.0,  vol: 0.0020, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "META",  name: "Meta",         price: 560.0,  vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "AMD",   name: "AMD",          price: 160.0,  vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "NFLX",  name: "Netflix",      price: 700.0,  vol: 0.0025, dec: 2, cat: "us", cur: "USD" },
+    { symbol: "INTC",  name: "Intel",        price: 22.0,   vol: 0.0030, dec: 2, cat: "us", cur: "USD" },
     // ---- Muscat Securities Exchange (MSX) — simulated ----
     { symbol: "BKMB",  name: "Bank Muscat",          price: 0.620, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
     { symbol: "OMTEL", name: "Omantel",              price: 0.850, vol: 0.0040, dec: 3, cat: "stock", cur: "OMR" },
@@ -96,9 +107,171 @@
     market[a.symbol].open24h = market[a.symbol].ticks[0];
   });
 
+  // ----------------------------- Live Data Layer ----------------------------
+  // Crypto: Hyperliquid public WS + REST (no backend, no key, CORS-OK).
+  // US stocks: yfinance via a small proxy you deploy (CONFIG.STOCK_PROXY_URL).
+  // MSX: simulated (no public feed). Everything falls back to simulation.
+  function readProxyFromQuery() {
+    try { return new URLSearchParams(location.search).get("proxy") || ""; } catch (e) { return ""; }
+  }
+  var CONFIG = {
+    LIVE_CRYPTO: true,
+    STOCK_PROXY_URL: readProxyFromQuery() || "", // e.g. "https://your-proxy.onrender.com"
+    HL_WS: "wss://api.hyperliquid.xyz/ws",
+    HL_REST: "https://api.hyperliquid.xyz/info"
+  };
+  function coinOf(sym) { return sym.replace(/-PERP$/, ""); }
+  function canFetch() { return typeof fetch !== "undefined"; }
+
+  function hlParseCandles(rows) {
+    // Hyperliquid candleSnapshot rows: [time, o, h, l, c, v, ...]
+    var bars = [];
+    (rows || []).forEach(function (r) {
+      var t = +r[0], o = +r[1], h = +r[2], l = +r[3], c = +r[4];
+      if ([t, o, h, l, c].some(function (x) { return isNaN(x); })) return;
+      bars.push({ t: t, o: o, h: h, l: l, c: c });
+    });
+    return bars;
+  }
+  function hlCandles(coin, tf) {
+    if (!canFetch()) return Promise.reject(new Error("no fetch"));
+    var tfMs = { "1m": 60000, "5m": 300000, "15m": 900000, "1h": 3600000 }[tf] || 60000;
+    var bars = 180, endTime = Date.now(), startTime = endTime - tfMs * bars;
+    return fetch(CONFIG.HL_REST, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "candleSnapshot", req: { coin: coin, interval: tf, startTime: startTime, endTime: endTime } })
+    }).then(function (r) { if (!r.ok) throw new Error("hl " + r.status); return r.json(); })
+      .then(function (rows) { var b = hlParseCandles(rows); if (!b.length) throw new Error("empty"); return b; });
+  }
+  function proxyCandles(sym, tf) {
+    if (!CONFIG.STOCK_PROXY_URL || !canFetch()) return Promise.reject(new Error("no proxy"));
+    var map = { "1m": ["1m", "1d"], "5m": ["5m", "1d"], "15m": ["15m", "1d"], "1h": ["60m", "5d"] };
+    var m = map[tf] || ["1d", "1mo"];
+    var url = CONFIG.STOCK_PROXY_URL + "/stock?symbol=" + encodeURIComponent(sym) + "&interval=" + m[0] + "&period=" + m[1];
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error("proxy " + r.status); return r.json(); })
+      .then(function (d) {
+        var candles = (d.candles || []).map(function (c) {
+          return { t: c.t ? +c.t : (c.time ? +c.time : 0), o: +c.o, h: +c.h, l: +c.l, c: +c.c };
+        });
+        if (!candles.length) throw new Error("empty");
+        return { price: d.price != null ? +d.price : candles[candles.length - 1].c, candles: candles };
+      });
+  }
+  function storeLiveCandles(sym, tf, bars, price) {
+    var m = market[sym]; if (!m) return;
+    m.liveCandles = m.liveCandles || {};
+    m.liveCandles[tf] = bars;
+    if (price != null) m.price = price;
+    m.live = true;
+    if (sym === currentSymbol) { renderTicker(); drawChart(); }
+  }
+  function loadHistory(sym, tf) {
+    var m = market[sym];
+    if (!m) return;
+    if (m.meta.cat === "crypto" && CONFIG.LIVE_CRYPTO) {
+      hlCandles(coinOf(sym), tf).then(function (bars) {
+        storeLiveCandles(sym, tf, bars, bars[bars.length - 1].c);
+        setLiveBadge(true, "LIVE · Hyperliquid");
+      }).catch(function () { /* keep simulation */ });
+    } else if (m.meta.cat === "us" && CONFIG.STOCK_PROXY_URL) {
+      proxyCandles(sym, tf).then(function (d) {
+        storeLiveCandles(sym, tf, d.candles, d.price);
+        setLiveBadge(true, "LIVE · yfinance");
+      }).catch(function () { /* keep simulation */ });
+    }
+  }
+
+  // ---- Hyperliquid WebSocket (live mids + order book) ----
+  var _ws = null, _wsRetry = null, _stockPoll = null;
+  function startLive() {
+    if (!CONFIG.LIVE_CRYPTO || typeof WebSocket === "undefined") return;
+    connectHL();
+    startStockPoll();
+  }
+  function connectHL() {
+    if (_ws && (_ws.readyState === 1 || _ws.readyState === 0)) return;
+    var ws;
+    try { ws = new WebSocket(CONFIG.HL_WS); } catch (e) { return; }
+    _ws = ws;
+    ws.onopen = function () {
+      try {
+        ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "allMids" } }));
+        ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "l2Book", coin: coinOf(currentSymbol) } }));
+      } catch (e) {}
+    };
+    ws.onmessage = function (ev) {
+      var msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.channel === "allMids") applyMids(msg.data);
+      else if (msg.channel === "l2Book") applyBook(msg.data);
+      else if (msg.channel === "activeAssetCtx") applyCtx(msg.data);
+    };
+    ws.onerror = function () {};
+    ws.onclose = function () { if (CONFIG.LIVE_CRYPTO) { clearTimeout(_wsRetry); _wsRetry = setTimeout(connectHL, 5000); } };
+  }
+  function applyMids(data) {
+    if (!data) return;
+    ASSETS.forEach(function (a) {
+      if (a.cat !== "crypto") return;
+      var c = coinOf(a.symbol);
+      if (data[c] != null) { var p = parseFloat(data[c]); if (!isNaN(p)) setLivePrice(a.symbol, p); }
+    });
+  }
+  function setLivePrice(sym, p) {
+    var m = market[sym]; if (!m) return;
+    var first = (m.open24h == null || m.open24h === 0 || m.open24h === m.meta.price);
+    if (first) { m.open24h = p; m.dayHigh = p; m.dayLow = p; }
+    m.lastUp = p >= (m.price || p);
+    m.price = p;
+    if (p > m.dayHigh) m.dayHigh = p;
+    if (p < m.dayLow) m.dayLow = p;
+    m.src = "hl"; m.live = true;
+    if (sym === currentSymbol) { renderTicker(); renderOrderBook(); }
+  }
+  function applyBook(data) {
+    if (!data || coinOf(currentSymbol) !== data.coin) return;
+    var m = market[currentSymbol];
+    var asks = ((data.levels && data.levels[0]) || []).slice(0, 8).map(function (x) { return { px: +x.px, sz: +x.sz }; });
+    var bids = ((data.levels && data.levels[1]) || []).slice(0, 8).map(function (x) { return { px: +x.px, sz: +x.sz }; });
+    m.liveBook = { asks: asks, bids: bids };
+    renderOrderBook();
+  }
+  function applyCtx(data) {
+    if (!data || !data.coin) return;
+    var m = market[data.coin + "-PERP"];
+    if (m && data.ctx && data.ctx.funding != null) m.funding = parseFloat(data.ctx.funding);
+  }
+  function resubscribeBook() {
+    if (_ws && _ws.readyState === 1) {
+      try { _ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "l2Book", coin: coinOf(currentSymbol) } })); } catch (e) {}
+    }
+  }
+  function startStockPoll() {
+    if (_stockPoll || !canFetch()) return;
+    _stockPoll = setInterval(function () {
+      var m = market[currentSymbol];
+      if (!m || m.meta.cat !== "us" || !CONFIG.STOCK_PROXY_URL) return;
+      fetch(CONFIG.STOCK_PROXY_URL + "/quote?symbol=" + encodeURIComponent(currentSymbol))
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d.price == null) return;
+          var p = +d.price, mm = market[currentSymbol];
+          mm.lastUp = p >= (mm.price || p); mm.price = p;
+          if (mm.open24h == null || mm.open24h === 0 || mm.open24h === mm.meta.price) mm.open24h = p;
+          mm.dayHigh = Math.max(mm.dayHigh || p, p); mm.dayLow = Math.min(mm.dayLow || p, p);
+          mm.src = "proxy"; mm.live = true; renderTicker(); renderOrderBook();
+        }).catch(function () {});
+    }, 4000);
+  }
+  function setLiveBadge(on, label) {
+    var b = document.getElementById("live-badge");
+    if (!b) return;
+    b.hidden = !on;
+    if (label) b.textContent = label;
+  }
+
   function stepMarket() {
     ASSETS.forEach(function (a) {
       var m = market[a.symbol];
+      if (m.live) return; // live symbols are driven by WS / proxy, not simulated
       // occasionally shift drift to create trends
       if (Math.random() < 0.01) m.drift = rand(-0.00008, 0.00008);
       var shock = rand(-a.vol, a.vol);
@@ -113,6 +286,10 @@
   }
 
   function candlesFor(symbol, timeframe) {
+    var m = market[symbol];
+    if (m && m.liveCandles && m.liveCandles[timeframe] && m.liveCandles[timeframe].length) {
+      return m.liveCandles[timeframe];
+    }
     var bucket = { "1m": 4, "5m": 20, "15m": 60, "1h": 240 }[timeframe] || 4;
     var ticks = market[symbol].ticks;
     var bars = [];
@@ -306,8 +483,9 @@
     list.innerHTML = "";
     var f = (filter || "").toUpperCase();
     var groups = [
-      { key: "crypto", title: "Crypto Perpetuals" },
-      { key: "stock", title: "MSX Stocks · Oman" }
+      { key: "crypto", title: "Crypto Perps · Hyperliquid" },
+      { key: "us", title: "US Stocks · yfinance" },
+      { key: "stock", title: "MSX Stocks · Oman (SIM)" }
     ];
     groups.forEach(function (grp) {
       var items = ASSETS.filter(function (a) {
@@ -367,23 +545,22 @@
     var m = market[currentSymbol];
     var dec = m.meta.dec;
     var mid = m.price;
-    var spread = mid * 0.0004;
-    var step = mid * 0.0008;
     var asks = $("ob-asks"), bids = $("ob-bids");
     asks.innerHTML = ""; bids.innerHTML = "";
-    var maxTotal = 0;
-    var levels = [];
-    for (var i = 1; i <= 8; i++) {
-      var aPx = mid + spread + step * i;
-      var bPx = mid - spread - step * (i - 1);
-      var aSz = rand(0.4, 6) * (1 + (11 - i) * 0.05);
-      var bSz = rand(0.4, 6) * (1 + (11 - i) * 0.05);
-      levels.push({ side: "ask", px: aPx, sz: aSz });
-      levels.push({ side: "bid", px: bPx, sz: bSz });
-      maxTotal = Math.max(maxTotal, aSz * i, bSz * i);
+    var live = (m.liveBook && m.liveBook.asks && m.liveBook.asks.length) ? m.liveBook : null;
+    var maxTotal = 0, levels = [];
+    if (live) {
+      live.asks.forEach(function (l) { levels.push({ side: "ask", px: +l.px, sz: +l.sz }); });
+      live.bids.forEach(function (l) { levels.push({ side: "bid", px: +l.px, sz: +l.sz }); });
+    } else {
+      var spread = mid * 0.0004, step = mid * 0.0008;
+      for (var i = 1; i <= 8; i++) {
+        levels.push({ side: "ask", px: mid + spread + step * i, sz: rand(0.4, 6) * (1 + (11 - i) * 0.05) });
+        levels.push({ side: "bid", px: mid - spread - step * (i - 1), sz: rand(0.4, 6) * (1 + (11 - i) * 0.05) });
+      }
     }
-    // asks rendered bottom-up so best ask is nearest mid (top of asks block)
-    var asksData = levels.filter(function (l) { return l.side === "ask"; }).reverse();
+    levels.forEach(function (l) { maxTotal = Math.max(maxTotal, l.sz); });
+    var asksData = levels.filter(function (l) { return l.side === "ask"; });
     var bidsData = levels.filter(function (l) { return l.side === "bid"; });
     function row(l, total) {
       var r = el("div", "ob-row");
@@ -396,10 +573,10 @@
       return r;
     }
     var at = 0, bt = 0;
-    asksData.forEach(function (l) { at += l.sz; asks.appendChild(row(l, at)); });
+    asksData.slice().reverse().forEach(function (l) { at += l.sz; asks.appendChild(row(l, at)); });
     bidsData.forEach(function (l) { bt += l.sz; bids.appendChild(row(l, bt)); });
     $("ob-mid").textContent = fmtPrice(mid, dec);
-    $("ob-mid").className = "ob-mid " + (Math.random() > 0.5 ? "green" : "red");
+    $("ob-mid").className = "ob-mid " + (m.lastUp ? "green" : "red");
   }
 
   function renderPositions() {
@@ -485,7 +662,9 @@
     var dec = m.meta.dec;
     var catLabel = m.meta.cat === "stock"
       ? "<b>MSX Stock</b>"
-      : "<b>Perpetual Futures</b>";
+      : m.meta.cat === "us"
+        ? "<b>US Stock</b>"
+        : "<b>Perpetual Futures</b>";
     $("perp-tag").innerHTML = sym + " · " + catLabel;
     var submit = $("trade-submit");
     submit.textContent = (side === "buy" ? "Buy / Long " : "Sell / Short ") + sym;
@@ -703,7 +882,12 @@
   }
 
   // ----------------------------- Interaction -------------------------------
-  function selectSymbol(sym) { currentSymbol = sym; renderAll(); }
+  function selectSymbol(sym) {
+    currentSymbol = sym;
+    loadHistory(sym, currentTimeframe);
+    if (market[sym].meta.cat === "crypto") resubscribeBook();
+    renderAll();
+  }
 
   function bindEvents() {
     // login
@@ -747,6 +931,7 @@
         document.querySelectorAll("#chart-interval button").forEach(function (x) { x.classList.remove("active"); });
         b.classList.add("active");
         currentTimeframe = b.dataset.tf;
+        loadHistory(currentSymbol, currentTimeframe);
         drawChart();
       });
     });
@@ -820,6 +1005,8 @@
     $("app").hidden = false;
     $("app").style.display = "";
     setupChart();
+    startLive();
+    loadHistory(currentSymbol, currentTimeframe);
     renderAll();
   }
 

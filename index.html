@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OmanTrade — Trading Simulation Platform | Sultanate of Oman</title>
   <meta name="description" content="A Hyperliquid-style trading simulation platform for college students in the Sultanate of Oman. Powered by Middle East College & Ministry of Education. Funded by MoHERI Research Grant." />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
 </head>
 <body>
@@ -81,6 +81,7 @@
           <span class="brand-mark-mini">O</span> Oman<span>Trade</span>
         </div>
         <span class="env-badge">SIMULATION</span>
+        <span id="live-badge" class="live-badge" hidden>LIVE</span>
       </div>
       <div class="topbar-right">
         <div class="acct-stat">
@@ -109,7 +110,7 @@
         <div class="panel-head">
           <input id="market-search" type="search" placeholder="Search market…" aria-label="Search market" />
         </div>
-        <div class="market-note">MSX prices are simulated · real feed can be plugged in</div>
+        <div class="market-note">Crypto: live Hyperliquid · US: yfinance proxy (set ?proxy=) · MSX: simulated</div>
         <div class="market-list" id="market-list" role="listbox" aria-label="Available markets"></div>
       </section>
 
@@ -226,6 +227,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
